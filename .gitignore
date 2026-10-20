@@ -1,0 +1,25 @@
+.venv/
+.env
+.env.lock
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+data/
+logs/
+work/
+.coverage
+dist/
+
+# Local secrets and runtime artifacts
+.env.*
+!.env.example
+build/
+node_modules/
+data_demo/
+*.db
+*.db-shm
+*.db-wal
+*.pem
+*.key
