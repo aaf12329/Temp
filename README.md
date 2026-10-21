@@ -32,6 +32,10 @@ FastAPI：校验、单调用方鉴权、任务提交、材料与结果查询
 
 ## Windows 安装与启动
 
+推荐双击根目录 **一键启动.bat**：调用 [快速部署](快速部署/README.md) 中的脚本，创建或复用根 `.venv`、安装 Python 依赖、有前端 package.json 时安装 npm 依赖，再启动 FastAPI 与 Worker。依赖未变时复用；支持在本机配置指定 Conda 解释器。根 `requirement.txt` 保留手动安装入口。当前无前端工程，npm 明确跳过。
+
+Quick start: run `一键启动.bat` to prepare the root environment and start API/Worker. Manual Conda interpreters are supported through local deployment config; npm dependencies are installed only when a frontend project exists. See the deployment guide for prerequisites and configuration.
+
 使用 Python 3.12，在项目根目录运行：
 
 ```powershell
@@ -127,6 +131,9 @@ demo 使用标注的假模型。真实模式在根 .env 设置 INDUSTRY_ADVISOR_
 ./
   .venv/                         唯一 Python 环境，不入库
   .env                           唯一本机服务配置，不入库
+  一键启动.bat                    自动部署并监管本机 API/Worker
+  requirement.txt                手动 pip/Conda 安装入口
+  快速部署/                       部署入口、配置模板与使用说明
   app/                           服务、适配、任务、调度
   components/crawler/            爬虫研究源码，不写运行数据
   产业研究建议助手/               独立助手源码，不另建环境

@@ -1,0 +1,6 @@
+# Windows / Python 3.12. Install from the project root, including in a manual Conda env.
+-r requirements.lock.txt
+-e .
+-e "./产业研究建议助手"
+# Optional GAN backend: pip install -r requirements/gan-pytorch.txt
+# CUDA and TensorFlow alternatives are documented in 快速部署/README.md.

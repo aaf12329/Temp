@@ -24,3 +24,6 @@ output/
 *.db-wal
 *.pem
 *.key
+
+# Per-machine deployment interpreter selection (may point to a manual Conda env)
+快速部署/config.local.json

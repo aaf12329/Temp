@@ -6,6 +6,8 @@
 
 唯一环境为根 .venv（Python 3.12）。主服务和助手安装进同一环境；爬虫/研究在同一解释器的隔离子进程中运行，避免旧模块全局状态污染服务。不新建组件环境，不修改原始独立 Crawler 工程。
 
+2026-10-21 所有者部署入口更新：一键启动.bat 调用快速部署/Start.ps1，默认仍用根 .venv；所有者可在不入库的 config.local.json 明确选择已有 Conda/Python 3.12 解释器。此时安装与 API/Worker 均使用所选解释器，不创建嵌套环境。requirement.txt 是根锁依赖及两个可编辑包的手动安装入口。旧按钮仍固定 .venv；新入口按依赖指纹安装，不自动切换已安装的 GAN 后端。npm 只在已有前端 package.json 时安装，尚未增加前端服务。
+
 配置、文档与持久引用使用相对项目根/逻辑 data 根的路径。绝对路径仅在运行时解析用于文件操作与边界检查，不硬编码开发机路径。平台地址簿为 app/common/paths.py；组件地址簿由适配器注入隔离工作区，运行数据不写源码目录。
 
 runtime、api、worker、operation_worker、execution、research、crawler/bridge、crawler/integrated、advisor/integrated 和 CLI 是入口/显式聚合层，可横向编排；services 功能层不横向导入。共用 I/O 在 app/common/file_io.py。

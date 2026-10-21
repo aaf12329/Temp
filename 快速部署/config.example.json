@@ -1,0 +1,9 @@
+{
+  "environment_mode": "venv",
+  "python_path": "",
+  "gan_backend": "auto",
+  "frontend_dir": "auto",
+  "install_npm": true,
+  "prepare_vector_model": true,
+  "port": 8000
+}
