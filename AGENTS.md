@@ -12,6 +12,8 @@
 
 配置、文档与持久引用使用相对项目根/逻辑 data 根的路径。绝对路径仅在运行时解析用于文件操作与边界检查，不硬编码开发机路径。平台地址簿为 app/common/paths.py；组件地址簿由适配器注入隔离工作区，运行数据不写源码目录。
 
+2026-10-21 本机目录已改为与 GitHub 同名的 industry-evidence-platform。业务源码与默认配置不含机器绝对文件路径；启动位置与目录名不能成为运行条件。外部 TXT/Conda 用户输入可显式指向项目外；Docker 容器内部固定挂载路径及工具生成的 .venv 元数据不作字符串替换。tests/test_conventions.py 负责源码地址检查及项目外导入/默认路径验证。
+
 runtime、api、worker、operation_worker、execution、research、crawler/bridge、crawler/integrated、advisor/integrated 和 CLI 是入口/显式聚合层，可横向编排；services 功能层不横向导入。共用 I/O 在 app/common/file_io.py。
 
 Windows 使用数据库持久队列；Linux 容器入口为 Celery + Redis + PostgreSQL。执行器共用任务表和 CAS 租约；Celery 不叠加自动重试。没有实际部署验收，不声称 Redis/PostgreSQL 已通过联调。

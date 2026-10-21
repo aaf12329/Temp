@@ -6,7 +6,10 @@
 """
 
 import ast
+import re
 import runpy
+import subprocess
+import sys
 
 import pytest
 
@@ -34,6 +37,43 @@ def test_feature_modules_have_no_sibling_imports():
         for node in ast.walk(ast.parse(path.read_text("utf-8"))):
             if isinstance(node, ast.ImportFrom):
                 assert not (node.module or "").startswith("app.services."), path
+
+
+def test_production_sources_have_no_machine_absolute_paths():
+    """拒绝源码与默认配置中的开发机文件地址；运行时解析与 HTTP URL 不受影响。"""
+    pattern = re.compile(r"(?<![A-Za-z0-9_])[A-Za-z]:[\\/]|/(?:Users|home)/")
+    paths = []
+    for area in ("app", "scripts", "frontend/src", "快速部署"):
+        paths.extend(path for path in (PROJECT_ROOT / area).rglob("*")
+                     if path.suffix in {".py", ".ps1", ".ts", ".tsx"}
+                     and "__pycache__" not in path.parts)
+    paths.extend((PROJECT_ROOT / "config").glob("*.json"))
+    paths.extend([PROJECT_ROOT / ".env.example", PROJECT_ROOT / "快速部署/config.example.json"])
+    for path in paths:
+        assert not pattern.search(path.read_text("utf-8-sig")), path.relative_to(PROJECT_ROOT)
+
+
+def test_installed_packages_and_defaults_work_outside_project(tmp_path):
+    """从项目外验证可编辑包与根配置定位，捕获目录改名后遗留的安装地址。"""
+    code = """
+from pathlib import Path
+import sys
+import app
+import advisor_bot
+from app.common.paths import ENV_FILE, PROJECT_ROOT
+from app.core.config import Settings
+root = Path(sys.argv[1]).resolve()
+assert PROJECT_ROOT == root
+assert Path(app.__file__).resolve().is_relative_to(root)
+assert Path(advisor_bot.__file__).resolve().is_relative_to(root)
+assert ENV_FILE == root / '.env'
+settings = Settings(_env_file=None, api_token='relative-path-check-token-0000000000000000')
+assert settings.data_dir == root / 'data'
+assert settings.absolute_database_url() == 'sqlite:///' + (root / 'data/platform.db').as_posix()
+"""
+    result = subprocess.run([sys.executable, "-c", code, str(PROJECT_ROOT)], cwd=tmp_path,
+                            capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
 
 
 def test_maintenance_module_imports_do_not_write_files(tmp_path, monkeypatch):

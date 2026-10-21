@@ -71,12 +71,12 @@ python -m pip install -r requirements/gan-pytorch.txt
 ```json
 {
   "environment_mode": "existing",
-  "python_path": "D:/your-conda-envs/industry/python.exe",
+  "python_path": "../conda-envs/industry/python.exe",
   "gan_backend": "auto"
 }
 ```
 
-上述路径是占位示例，替换为自己环境的真实 python.exe；不写 conda.exe。配置支持含空格和中文的文件路径。再双击一键启动即可，不需要依赖终端是否执行过 conda activate，也不会另外创建 .venv。安装与启动均使用这一解释器，不在 Conda 内再套 venv。
+上述路径是占位示例，相对项目根目录解析：仅当环境确实位于相邻 conda-envs/industry 时可直接使用。请按实际位置填写 python.exe，不写 conda.exe；外部环境也可显式使用绝对路径，这属于本机配置而非源码路径。配置支持空格和中文。再双击一键启动即可，不依赖终端是否执行过 conda activate，也不会另外创建 .venv；安装与启动共用所选解释器。
 
 现有 `启动API.cmd` / `启动Worker.cmd` / `启动CLI.cmd` 等旧按钮仍固定使用根 .venv。选择 Conda 后统一使用新的一键启动；若手动启动 CLI，用所选环境的 `python -m app.pipeline_cli`。
 

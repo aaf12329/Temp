@@ -135,6 +135,12 @@ demo 使用标注的假模型。真实模式在根 .env 设置 INDUSTRY_ADVISOR_
 
 配置和持久引用相对项目根或逻辑 data 根。程序执行时解析真实路径用于操作与边界检查，不把本机绝对路径写进 API 或研究导出。
 
+本地项目文件夹现与仓库同名 industry-evidence-platform。源码通过文件自身位置定位根目录，启动脚本通过自身目录定位，不依赖文件夹名称或启动终端的位置。默认配置使用 data、output、config 等相对引用；Conda 的 python_path 也支持相对项目根目录填写。
+
+外部 TXT/Conda 的用户输入、运行时解析结果、虚拟环境生成文件及容器内固定挂载点可以包含绝对路径。它们不属于写死开发机目录；虚拟环境仍应在新电脑重新创建，不能保证复制 .venv 后可用。
+
+Project-owned paths are rooted at the source/script location, independently of the checkout name or current working directory. Defaults and stored artifact references are relative; external user selections and tool-managed environment metadata are resolved locally.
+
 ```text
 ./
   .venv/                         唯一 Python 环境，不入库
