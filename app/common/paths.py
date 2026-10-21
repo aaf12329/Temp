@@ -82,6 +82,7 @@ class PipelinePaths:
             "manifest": "manifest.json", "status": "status.json",
             "information": "information.csv",
             "forecast": "forecast.csv",
+            "tsne": "gan_tsne.png", "tsne_points": "gan_tsne.csv", "tsne_meta": "gan_tsne.json",
         }
         return self.root / names[name]
 
@@ -99,7 +100,8 @@ class PipelinePaths:
                  "rejected", "missing", "cleaning", "reviewed", "series", "train", "validation",
                  "test", "generated", "quality", "model", "predictions", "evaluation",
                  "importance", "trend", "missing_plot", "gan_plot", "runtime", "materials",
-                 "passages", "analysis", "manifest", "status", "information", "forecast"]
+                 "passages", "analysis", "manifest", "status", "information", "forecast",
+                 "tsne", "tsne_points", "tsne_meta"]
         vendor = ["model.npz", "model.json", "normalizer.json", "training_history.csv",
                   "generated_data.csv", "generated_encoded.csv", "training_data.csv",
                   "processing_report.json", "training_losses.png", "tsne.png", "run_status.json"]

@@ -99,4 +99,6 @@ GAN 只有达到真实训练门槛且有尝试必要时才询问框架。终端�
 
 成功建模的子目录含 train/validation/test.csv、predictions.csv、可预测时的forecast.csv、xgboost.json、evaluation.png（实际/预测、残差、直方图）、importance.png、trend.png。实际训练 GAN 时再增加 generated.csv、quality.json、gan.png 和 gan/ 下数值权重/归一化/损失记录。
 
+GAN 训练后还会输出 gan_tsne.png（真实训练样本/生成样本联合 t-SNE）、gan_tsne.csv（二维坐标、来源行号、生成标记）和 gan_tsne.json（抽样、随机种子、尺度拟合范围及参数）。默认最多600点，两类各最多300，CPU最多500次迭代；可在 gan.tsne_max_points 调整，上限1000。StandardScaler 只拟合真实训练表，验证/测试不参与投影。质量被拒的生成样本仍可展示，但图例注明 rejected；常量或样本不足会明确说明不适用。点云重叠不作为质量通过依据。
+
 缓存、来源快照和助手 JSON 会话仍在 data，便于审计和重用；不进入 Git。output 会覆盖，重要报告请使用者自行另存。配置和导出引用使用相对路径，运行时才解析本机绝对位置。

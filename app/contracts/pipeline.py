@@ -60,6 +60,7 @@ class GAN(Strict):
     min_real_samples: int = Field(default=64, ge=32, le=10000)
     generated_ratio: float = Field(default=1, gt=0, le=2)
     max_generated: int = Field(default=2000, ge=16, le=10000)
+    tsne_max_points: int = Field(default=600, ge=20, le=1000)
     params: GANParameters = Field(default_factory=GANParameters)
 
 

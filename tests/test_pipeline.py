@@ -147,6 +147,22 @@ def test_rules_and_generated_quality_do_not_promote_facts():
     assert training_outliers(frame, CLIConfig().cleaning, 2)[1]["status"] == "evaluated"
 
 
+def test_tsne_subsamples_and_labels_rejected_generation(tmp_path):
+    """大表只投影预算内的点，输出原行号与生成状态，不修改输入。"""
+    from app.pipeline.plots import gan_tsne
+
+    rng = np.random.default_rng(42)
+    real = pd.DataFrame(rng.normal(size=(5000, 3)), columns=list("abc"))
+    fake = pd.DataFrame(rng.normal(10, 2, size=(5000, 3)), columns=list("abc"))
+    before = real.copy(deep=True)
+    paths = PipelinePaths(tmp_path / "tsne")
+    metadata = gan_tsne(real, fake, paths, accepted=False, max_points=40)
+    assert metadata["plotted_real"] == metadata["plotted_synthetic"] == 20
+    assert metadata["quality_accepted"] is False
+    assert len(paths.file("tsne_points").read_text("utf-8-sig").splitlines()) == 41
+    pd.testing.assert_frame_equal(real, before)
+
+
 def test_no_sql_cli_full_roundtrip(tmp_path, cli_settings, monkeypatch, mock_component_network):
     """假网络、真爬虫/提取/缺失诊断与演示助手，CSV 和来源输出且不创建数据库。"""
     from app import pipeline_cli
@@ -270,4 +286,8 @@ def test_real_cpu_wgan_two_backends(tmp_path, legacy_imports, backend):
     assert report["synthetic_rows"] == 64
     assert (paths.gan_directory() / "model.npz").is_file()
     assert paths.file("gan_plot").is_file()
+    assert paths.file("tsne").read_bytes().startswith(b"\x89PNG")
+    tsne = read_json(paths.file("tsne_meta"))
+    assert tsne["plotted_real"] == tsne["plotted_synthetic"] == 64
+    assert tsne["fit_scope"] == "real_training_only"
     assert "is_synthetic" in paths.file("generated").read_text("utf-8-sig").splitlines()[0]

@@ -11,7 +11,7 @@ import numpy as np
 
 from app.common.file_io import write_frame, write_json
 from app.pipeline.cleaning import generated_quality
-from app.pipeline.plots import gan_plot
+from app.pipeline.plots import gan_plot, gan_tsne
 
 
 def augment(frame, config, paths, threads: int):
@@ -70,8 +70,11 @@ def augment(frame, config, paths, threads: int):
         write_frame(paths.file("generated"), marked)
         write_json(paths.file("quality"), quality)
         gan_plot(trained.history, paths.file("gan_plot"))
+        tsne = gan_tsne(frame, generated, paths, accepted=quality["accepted"],
+                        max_points=config.tsne_max_points, threads=threads, seed=params.seed)
         report.update(status="accepted" if quality["accepted"] else "rejected",
-                      synthetic_rows=len(generated), quality=quality, reason=quality["reason"])
+                      synthetic_rows=len(generated), quality=quality, reason=quality["reason"], tsne=tsne)
+        print(f"[t-SNE] {tsne['status']}：真实训练 vs 生成样本，最多 {config.tsne_max_points} 点", flush=True)
         print(f"[WGAN] {report['status']}: {report['reason']}", flush=True)
         return generated if quality["accepted"] else None, report
     except (ImportError, PackageNotFoundError):

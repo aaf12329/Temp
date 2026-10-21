@@ -7,7 +7,7 @@
 
 import numpy as np
 
-from app.common.file_io import save_figure
+from app.common.file_io import save_figure, write_csv_rows, write_json
 
 
 def _pyplot():
@@ -101,3 +101,66 @@ def gan_plot(history, destination):
     figure.tight_layout()
     save_figure(destination, figure)
     plt.close(figure)
+
+
+def gan_tsne(real, generated, paths, *, accepted: bool, max_points=600, threads=2, seed=42):
+    """训练数据拟合尺度，固定随机抽样后联合降维真实/生成样本；不接收验证和测试。"""
+    from sklearn.manifold import TSNE
+    from sklearn.preprocessing import StandardScaler
+    from threadpoolctl import threadpool_limits
+
+    metadata = {"status": "skipped", "fit_scope": "real_training_only",
+                "input_real_rows": len(real), "input_synthetic_rows": len(generated),
+                "max_points": max_points, "seed": seed, "quality_accepted": accepted,
+                "interpretation": "联合t-SNE仅作探索，点云重叠不证明生成质量或产业事实真实"}
+    if real.shape[1] < 2 or len(real) < 2 or len(generated) < 2:
+        metadata["reason"] = "需要至少2个数值字段、2条真实训练数据和2条生成数据"
+        write_json(paths.file("tsne_meta"), metadata)
+        return metadata
+    rng = np.random.default_rng(seed)
+    real_ids = np.sort(rng.choice(len(real), min(len(real), max_points // 2), replace=False))
+    fake_ids = np.sort(rng.choice(len(generated), min(len(generated), max_points // 2), replace=False))
+    # 缩放器只拟合原始真实训练表，抽样不会引入测试信息，也不让生成分布决定尺度。
+    scaler = StandardScaler().fit(real)
+    combined = np.vstack([scaler.transform(real.iloc[real_ids]),
+                          scaler.transform(generated.iloc[fake_ids])])
+    if not np.isfinite(combined).all():
+        metadata["reason"] = "存在非有限值，不能绘制t-SNE"
+        write_json(paths.file("tsne_meta"), metadata)
+        return metadata
+    if not np.any(np.ptp(combined, axis=0) > 1e-12):
+        metadata["reason"] = "所有字段均为常量，没有可解释的分布结构"
+        write_json(paths.file("tsne_meta"), metadata)
+        return metadata
+    perplexity = min(30.0, (len(combined) - 1) / 3)
+    with threadpool_limits(limits=threads):
+        points = TSNE(n_components=2, perplexity=perplexity, max_iter=500,
+                      init="pca", learning_rate="auto", random_state=seed,
+                      method="barnes_hut", n_jobs=threads).fit_transform(combined)
+    rows = []
+    for i, (source, ids) in enumerate([("real_train", real_ids), ("synthetic", fake_ids)]):
+        offset = 0 if i == 0 else len(real_ids)
+        rows.extend({"source": source, "source_row": int(row), "is_synthetic": bool(i),
+                     "tsne_1": float(points[offset + j, 0]),
+                     "tsne_2": float(points[offset + j, 1])} for j, row in enumerate(ids))
+    write_csv_rows(paths.file("tsne_points"), rows)
+    plt = _pyplot()
+    figure, axis = plt.subplots(figsize=(8, 6))
+    for start, stop, color, marker, label in [
+            (0, len(real_ids), "#223c64", "o", "Real training"),
+            (len(real_ids), len(points), "#df779c", "s",
+             "Synthetic (quality accepted)" if accepted else "Synthetic (quality rejected)")]:
+        axis.scatter(points[start:stop, 0], points[start:stop, 1], color=color,
+                     marker=marker, alpha=0.7, s=24, label=label)
+    axis.set(xlabel="t-SNE 1", ylabel="t-SNE 2", title="WGAN-GP: real training vs synthetic")
+    axis.legend()
+    axis.text(0.5, -0.13, "Exploratory visualization; overlap does not establish data quality",
+              transform=axis.transAxes, ha="center", fontsize=9)
+    figure.tight_layout()
+    save_figure(paths.file("tsne"), figure)
+    plt.close(figure)
+    metadata.update(status="completed", plotted_real=len(real_ids), plotted_synthetic=len(fake_ids),
+                    perplexity=perplexity, max_iter=500, method="barnes_hut",
+                    real_row_indices=real_ids.tolist(), synthetic_row_indices=fake_ids.tolist())
+    write_json(paths.file("tsne_meta"), metadata)
+    return metadata

@@ -27,7 +27,7 @@
 
 跳过项是 Windows 当前用户无建立符号链接的权限；普通覆盖与文件边界用例已实际执行，不声称链接创建用例通过。测试全部使用临时目录、合成网页、合成数值或演示助手；没有请求真实付费模型，没有用真实产业数字评估预测质量。
 
-默认小网络真实冒烟（分别独立进程，CPU、2线程、64x3合成表、100 epochs）：
+默认小网络真实冒烟（接入t-SNE前，分别独立进程，CPU、2线程、64x3合成表、100 epochs）：
 
 | 后端 | 训练及诊断耗时 | 峰值进程工作集 |
 | --- | ---: | ---: |
@@ -37,6 +37,8 @@
 这些是当前执行机器的一轮观测，不是用户 i5-12450H 轻薄本的实测，不能外推任意训练数据的耗时。真实数据与大参数仍受逐阶段超时、输入规模和单任务限制。两后端均安装用于兼容验证，但实际运行只导入所选框架；不同时训练两套。
 
 本机证据在忽略目录 work/：cli-final-regression.log、cli-crawler-regression.log、cli-advisor-regression.log、cli-setup-check.log、cli-pytorch-check.log、cli-tensorflow-check.log、cli-check/*/runtime.json。源代码修改前备份为 work/before-analysis-pipeline-43d7f4a.zip。
+
+随后补入 GAN t-SNE：真实训练数据拟合尺度，两类联合降维，默认最多600点、500次迭代，拒绝的生成样本图例明确标记。接入后相关用例22通过、1链接权限跳过；新增5000+5000行预算抽样用例另1项通过。PyTorch默认100轮含t-SNE的一轮观测为4.124秒、397.14MB峰值工作集，已实际查看PNG。相关记录为work/cli-tsne-tests.log、cli-tsne-budget-check.log、cli-tsne-visual-check.log。上述完整回归与新增用例合计覆盖621个测试和80个子测试；没有把重叠运行重复计数。
 
 ## 当前限制
 
