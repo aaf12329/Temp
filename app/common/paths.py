@@ -16,7 +16,12 @@ ALEMBIC_CONFIG = PROJECT_ROOT / "alembic.ini"
 MIGRATIONS_DIR = PROJECT_ROOT / "migrations"
 DEPENDENCY_LOCK = PROJECT_ROOT / "requirements.lock.txt"
 OPENAPI_FILE = PROJECT_ROOT / "docs/openapi.json"
+ENVIRONMENT_CHECK = PROJECT_ROOT / "work/environment-check.json"
+SERVICE_CHECK = PROJECT_ROOT / "work/service-check.json"
+ACCEPTANCE_DIRECTORY = PROJECT_ROOT / "work"
 CRAWLER_COMPONENT = PROJECT_ROOT / "components/crawler"
+CRAWLER_SOURCE = CRAWLER_COMPONENT / "src"
+RESEARCH_TEMPLATE = CRAWLER_COMPONENT / "config/research.json"
 CRAWLER_BRIDGE = PROJECT_ROOT / "app/crawler/bridge.py"
 ADVISOR_COMPONENT = PROJECT_ROOT / "产业研究建议助手"
 DATA_DIRECTORY_NAME = "data"
@@ -43,16 +48,21 @@ class DataPaths:
 
     def artifact_path(self, category: str, record_id: str, digest: str, suffix: str) -> Path:
         """返回按内容寻址的不可变材料位置；由采集晋升流程调用。"""
-        return self.root / category / record_id / (digest + suffix)
+        return self.root / category / digest[:2] / (digest + suffix)
 
-    def advisor_root(self, project_id: str) -> Path:
+    def research_input_reference(self, category: str, stem: str, suffix: str) -> str:
+        """登记短文件名研究副本，避免 Windows 临时路径超长；由研究入口调用。"""
+        return f"data/normalized/{category}/{stem}{suffix}"
+
+    def advisor_root(self, project_id: str, demo: bool = False) -> Path:
         """项目隔离的建议会话根；由建议适配器调用。"""
-        return self.root / "advisor" / project_id
+        return self.root / ("advisor_demo" if demo else "advisor") / project_id
 
-    def advisor_operation(self, project_id: str, operation_id: str, name: str) -> Path:
+    def advisor_operation(self, project_id: str, operation_id: str, name: str,
+                          demo: bool = False) -> Path:
         """返回建议调用的缓存、锁与开始标记；由幂等适配器调用。"""
         names = {"result": "result.json", "lock": "operation.lock", "started": "started.json"}
-        return self.advisor_root(project_id) / "operations" / operation_id / names[name]
+        return self.advisor_root(project_id, demo) / "operations" / operation_id / names[name]
 
     def operation_directory(self, operation_id: str) -> Path:
         """研究结果目录；由操作任务入口调用。"""
@@ -61,6 +71,17 @@ class DataPaths:
     def research_workspace(self, operation_id: str) -> Path:
         """研究子进程的隔离输入根；由研究入口调用。"""
         return self.root / "workspaces/research" / operation_id
+
+    def bridge_file(self, workspace: Path, name: str) -> Path:
+        """登记隔离桥接的配置和响应文件；由适配入口调用。"""
+        return workspace / {"config": "research-config.json", "result": "bridge-result.json"}[name]
+
+    def research_file(self, operation_id: str, name: str) -> Path:
+        """登记允许下载的研究产物；由研究入口和下载路由调用。"""
+        exports = {"documents": ".csv", "passages": ".csv", "facts": ".csv",
+                   "review_template": ".csv", "series": ".csv", "issues": ".json",
+                   "manifest": ".json", "analysis": ".json", "trend": ".json", "report": ".md"}
+        return self.operation_directory(operation_id) / (name + exports[name])
 
     def model_directory(self) -> Path:
         """统一环境的向量模型缓存；由研究入口调用。"""

@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from starlette.exceptions import HTTPException
 
+from app.api.integration import router as integration_router
 from app.api.routes import router
 from app.core.config import Settings
 from app.core.errors import ServiceError
@@ -128,6 +129,7 @@ def create_app(settings: Settings | None = None, adapter=None) -> FastAPI:
         try:
             with runtime.db.engine.connect() as connection:
                 connection.execute(text("SELECT job_id FROM jobs LIMIT 1"))
+                connection.execute(text("SELECT operation_id FROM operations LIMIT 1"))
         except Exception:
             return JSONResponse({"status": "not_ready", "database": False}, status_code=503)
         configured = runtime.adapter is not None
@@ -141,4 +143,5 @@ def create_app(settings: Settings | None = None, adapter=None) -> FastAPI:
         )
 
     application.include_router(router)
+    application.include_router(integration_router)
     return application

@@ -21,7 +21,8 @@ def main() -> None:
     from app.main import create_app
 
     freeze = subprocess.run(
-        [sys.executable, "-m", "pip", "freeze", "--exclude", "industry-research-platform"],
+        [sys.executable, "-m", "pip", "freeze", "--exclude", "industry-research-platform",
+         "--exclude", "industry-research-advisor"],
         capture_output=True,
         check=True,
         encoding="utf-8",
@@ -29,7 +30,9 @@ def main() -> None:
     write_text(
         DEPENDENCY_LOCK,
         "# Verified local environment: Windows x64, Python 3.12.14\n"
-        "# Install these pins, then: python -m pip install --no-deps -e .\n" + freeze.stdout,
+        "# Install pins, then install root and advisor packages with --no-deps -e.\n"
+        "# Windows lock; Linux containers resolve dependencies from root pyproject.toml.\n"
+        + freeze.stdout,
     )
     write_json(OPENAPI_FILE, create_app().openapi())
     print("Updated dependency pins and OpenAPI; no credentials exported.")

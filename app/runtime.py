@@ -10,13 +10,17 @@
 
 from dataclasses import dataclass
 
+from app.advisor.integrated import IntegratedAdvisor
 from app.common.storage import Storage
 from app.core.config import Settings
 from app.crawler.base import CrawlerAdapter
+from app.crawler.integrated import IntegratedCrawler
 from app.crawler.loader import load_adapter
 from app.db.session import Database
+from app.research import IntegratedResearch
 from app.services.jobs import Jobs
 from app.services.materials import Materials
+from app.services.operations import Operations
 from app.services.policies import Policies
 
 
@@ -29,6 +33,9 @@ class Runtime:
     policies: Policies
     materials: Materials
     adapter: CrawlerAdapter | None
+    operations: Operations
+    advisor: IntegratedAdvisor
+    research: IntegratedResearch
 
 
 def create_runtime(settings: Settings, adapter=None) -> Runtime:
@@ -43,5 +50,10 @@ def create_runtime(settings: Settings, adapter=None) -> Runtime:
         Jobs(db, storage, settings.lease_seconds),
         Policies(storage),
         Materials(db, storage),
-        adapter if adapter is not None else load_adapter(settings.crawler_adapter),
+        adapter if adapter is not None else (
+            IntegratedCrawler(settings.data_dir, settings.bridge_timeout_s)
+            if settings.crawler_adapter == "integrated" else load_adapter(settings.crawler_adapter)),
+        Operations(db, settings.lease_seconds),
+        IntegratedAdvisor(settings),
+        IntegratedResearch(settings),
     )

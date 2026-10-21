@@ -204,16 +204,14 @@ class Jobs:
             and_(ItemRow.state == "running", ItemRow.lease_until < now),
         )
 
-    def claim(self) -> Claim | None:
+    def claim(self, record_id: str | None = None) -> Claim | None:
         """通过条件更新领取一个持久工作项；由 Worker 单步执行调用。"""
         now = time.time()
         with self.db.session() as session:
-            candidate = session.scalar(
-                select(ItemRow)
-                .where(self._ready(now))
-                .order_by(ItemRow.next_run, ItemRow.record_id)
-                .limit(1)
-            )
+            query = select(ItemRow).where(self._ready(now))
+            if record_id is not None:
+                query = query.where(ItemRow.record_id == record_id)
+            candidate = session.scalar(query.order_by(ItemRow.next_run, ItemRow.record_id).limit(1))
             if candidate is None:
                 return None
             record_id, job_id, url = candidate.record_id, candidate.job_id, candidate.url

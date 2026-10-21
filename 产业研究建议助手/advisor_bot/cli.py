@@ -24,7 +24,7 @@ from advisor_bot.service import build_bot
 
 def parser() -> argparse.ArgumentParser:
     """定义独立命令合同；由 main 调用。"""
-    command = argparse.ArgumentParser(description="独立产业研究建议助手（尚未接入主系统）")
+    command = argparse.ArgumentParser(description="产业研究建议助手（可独立运行）")
     command.add_argument("--demo", action="store_true", help="零网络离线演示，使用 data_demo")
     command.add_argument("--session", default="default")
     command.add_argument("--json", action="store_true", help="输出稳定 JSON 结构")
@@ -66,7 +66,7 @@ def _chat(bot, session_id: str) -> None:
             return
 
 
-def main() -> int:
+def main(settings: BotSettings | None = None) -> int:
     """编排一个明确命令并返回退出码；由命令入口调用。"""
     # 管道/子进程也明确使用 UTF-8；Python -I 会忽略 PYTHONUTF8 环境变量。
     for stream in (sys.stdin, sys.stdout, sys.stderr):
@@ -74,7 +74,7 @@ def main() -> int:
             stream.reconfigure(encoding="utf-8")
     args = parser().parse_args()
     try:
-        bot = build_bot(BotSettings(demo=args.demo))
+        bot = build_bot(settings or BotSettings(demo=args.demo))
         if args.action == "chat":
             _chat(bot, args.session)
             return 0

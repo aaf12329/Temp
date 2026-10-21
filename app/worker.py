@@ -7,7 +7,7 @@
 调用关系：
 ├─ run_one → runtime.jobs.claim, runtime.policies.for_url, check_result, failed_result, runtime.jobs.complete
 ├─ run_forever → run_one
-├─ keep_alive → runtime.jobs.heartbeat。
+├─ maintain_lease → runtime.jobs.heartbeat。
 数据流：持久待执行项 → 租约/采集/校验 → 结果或重试状态。
 """
 
@@ -18,10 +18,12 @@ import time
 from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
+from app.common.leases import maintain_lease
 from app.contracts.crawler import CrawlResult, Meta
 from app.core.errors import ServiceError
 from app.crawler.base import CrawlContext
 from app.crawler.loader import require_adapter
+from app.operation_worker import run_operation
 from app.runtime import Runtime
 from app.services.jobs import MAX_ATTEMPTS, Claim
 
@@ -67,50 +69,32 @@ def check_result(claim: Claim, result: CrawlResult) -> str:
     return "ok_pdf" if result.verdict == "pdf" else "ok"
 
 
-def run_one(runtime: Runtime) -> bool:
+def run_one(runtime: Runtime, record_id: str | None = None) -> bool:
     """领取并处理一个持久工作项；由 Worker 循环或单步命令调用。"""
     adapter = require_adapter(runtime.adapter)
-    claim = runtime.jobs.claim()
+    claim = runtime.jobs.claim(record_id)
     if claim is None:
         return False
-    stop_heartbeat = threading.Event()
-    lease_lost = threading.Event()
-
-    def keep_alive():
-        """周期续租并标记令牌丢失；由独立心跳线程调度。"""
-        while not stop_heartbeat.wait(min(runtime.settings.lease_seconds / 3, 10)):
-            try:
-                if not runtime.jobs.heartbeat(claim):
-                    lease_lost.set()
-                    return
-            except Exception:
-                logger.exception("Lease heartbeat failed for %s", claim.record_id)
-                lease_lost.set()
-                return
-
-    thread = threading.Thread(target=keep_alive, daemon=True)
-    thread.start()
-    try:
-        if claim.attempts > MAX_ATTEMPTS:
-            raise ServiceError("E_WORKER_LOST", "任务多次因进程中断失去执行租约。", 500, True)
-        policy = runtime.policies.for_url(claim.url)
-        result = CrawlResult.model_validate(
-            adapter.crawl_one(
-                claim.request,
-                claim.url,
-                CrawlContext(runtime.storage.root, policy, runtime.settings.code_version),
+    with maintain_lease(lambda: runtime.jobs.heartbeat(claim),
+                        runtime.settings.lease_seconds) as lease_lost:
+        try:
+            if claim.attempts > MAX_ATTEMPTS:
+                raise ServiceError("E_WORKER_LOST", "任务多次因进程中断失去执行租约。", 500, True)
+            policy = runtime.policies.for_url(claim.url)
+            result = CrawlResult.model_validate(
+                adapter.crawl_one(
+                    claim.request,
+                    claim.url,
+                    CrawlContext(runtime.storage.root, policy, runtime.settings.code_version),
+                )
             )
-        )
-        outcome = check_result(claim, result)
-    except ServiceError as exc:
-        result, outcome = failed_result(runtime, claim, exc.error), "failed"
-    except Exception:
-        logger.exception("Crawler adapter failed for %s", claim.record_id)
-        error = ServiceError("E_ADAPTER_ERROR", "爬虫适配器执行异常，详见 Worker 日志。", 500)
-        result, outcome = failed_result(runtime, claim, error.error), "failed"
-    finally:
-        stop_heartbeat.set()
-        thread.join(timeout=5)
+            outcome = check_result(claim, result)
+        except ServiceError as exc:
+            result, outcome = failed_result(runtime, claim, exc.error), "failed"
+        except Exception:
+            logger.exception("Crawler adapter failed for %s", claim.record_id)
+            error = ServiceError("E_ADAPTER_ERROR", "爬虫适配器执行异常，详见 Worker 日志。", 500)
+            result, outcome = failed_result(runtime, claim, error.error), "failed"
     if not lease_lost.is_set():
         runtime.jobs.complete(claim, result, outcome)
     return True
@@ -118,6 +102,8 @@ def run_one(runtime: Runtime) -> bool:
 
 def run_forever(runtime: Runtime):
     """维护独立 Worker 循环和退出信号；由 CLI worker 调用。"""
+    if runtime.settings.task_backend != "database":
+        raise ServiceError("E_WORKER_MODE", "当前为 Celery 模式，请启动 Celery Worker 和 Beat。", 409)
     require_adapter(runtime.adapter)
     stop = threading.Event()
     for signum in (signal.SIGINT, signal.SIGTERM):
@@ -125,7 +111,9 @@ def run_forever(runtime: Runtime):
     logger.info("Worker started; durable queue; adapter=%s", runtime.settings.crawler_adapter)
     while not stop.is_set():
         try:
-            if not run_one(runtime):
+            worked = run_operation(runtime)
+            crawled = run_one(runtime)
+            if not (worked or crawled):
                 stop.wait(runtime.settings.poll_interval_s)
         except Exception:
             logger.exception(

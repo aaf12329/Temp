@@ -46,10 +46,10 @@ class IntegratedAdvisor:
         self.paths = DataPaths(Path(settings.data_dir))
         self.model_factory = model_factory
 
-    def _root(self, project_id: str) -> Path:
+    def _root(self, project_id: str, demo: bool = False) -> Path:
         """校验项目 ID 与真实目录边界；由建议和历史读取入口调用。"""
         TypeAdapter(SafeIdentifier).validate_python(project_id)
-        root = self.paths.advisor_root(project_id)
+        root = self.paths.advisor_root(project_id, demo)
         base = Path(self.settings.data_dir).resolve()
         if not root.resolve().is_relative_to(base):
             raise ServiceError("E_ADVISOR_PATH", "建议数据目录越界，请检查项目目录配置。", 500)
@@ -112,14 +112,16 @@ class IntegratedAdvisor:
         """执行或重放同一操作；由 Worker 调用，使用操作锁防止重复付费和重复会话。"""
         try:
             parsed = AdvisorRequest.model_validate(request)
-            root = self._root(parsed.project_id)
+            root = self._root(parsed.project_id, parsed.demo)
             context, citations, warnings = self._context(evidence, research_summary)
             fingerprint = hashlib.sha256(json.dumps(
                 {"request": parsed.model_dump(), "context": context},
                 sort_keys=True, ensure_ascii=False,
             ).encode()).hexdigest()
-            operation = self.paths.advisor_operation(parsed.project_id, parsed.operation_id, "result")
-            lock = self.paths.advisor_operation(parsed.project_id, parsed.operation_id, "lock")
+            operation = self.paths.advisor_operation(parsed.project_id, parsed.operation_id,
+                                                     "result", parsed.demo)
+            lock = self.paths.advisor_operation(parsed.project_id, parsed.operation_id,
+                                                "lock", parsed.demo)
             for path in (operation, lock):
                 if not path.resolve().is_relative_to(root.resolve()):
                     raise ServiceError("E_ADVISOR_PATH", "操作缓存目录越界，请检查数据目录。", 500)
@@ -179,10 +181,10 @@ class IntegratedAdvisor:
             raise ServiceError(failure["code"], failure["message"], cached["status"], failure["retryable"])
         raise ServiceError("E_ADVISOR_OUTCOME_UNKNOWN", "上次模型调用结果未知，请核对会话后使用新操作 ID。", 409)
 
-    def history(self, project_id: str, session_id: str) -> dict:
+    def history(self, project_id: str, session_id: str, demo: bool = False) -> dict:
         """读取最后 100 轮的安全会话视图；由 API 调用，不需要模型密钥或访问网络。"""
         try:
-            root = self._root(project_id)
+            root = self._root(project_id, demo)
             TypeAdapter(SafeIdentifier).validate_python(session_id)
             history = History(AdvisorPaths(root))
             with history.lock(session_id):

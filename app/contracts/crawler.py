@@ -162,7 +162,7 @@ class Source(BaseModel):
     is_reprint: bool | None = None
 
 
-class Meta(BaseModel):
+class Meta(Extensible):
     requested_by: str | None = None
     rule_version: str | None = None
     code_version: str

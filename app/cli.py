@@ -39,6 +39,7 @@ def main():
     worker.add_argument("--once", action="store_true")
     sub.add_parser("export", help="从数据库重建 pages.json 材料快照")
     sub.add_parser("openapi", help="输出接口描述，供后续 TypeScript 接入")
+    sub.add_parser("model-setup", help="显式准备固定版本 CPU 向量模型，不调用付费模型")
     args = parser.parse_args()
     settings = Settings()
     if args.action == "openapi":
@@ -51,13 +52,24 @@ def main():
         if args.action == "init":
             migrate(settings)
             print("数据目录和数据库迁移已完成。")
+        elif args.action == "model-setup":
+            from uuid import uuid4
+
+            from app.common.component import run_component
+
+            paths = runtime.storage.paths
+            result = run_component({"action": "model-setup"},
+                                   paths.research_workspace(uuid4().hex), settings.data_dir, 600)
+            print(json.dumps({"model_id": result["model_id"], "revision": result["revision"]}))
         elif args.action == "export":
             runtime.jobs.export_materials()
             print("材料快照已导出。")
         else:
+            from app.operation_worker import run_operation
             from app.worker import run_forever, run_one
 
             if args.once:
+                run_operation(runtime)
                 run_one(runtime)
             else:
                 run_forever(runtime)

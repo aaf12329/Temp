@@ -241,7 +241,7 @@ class Encoder:
             "revision": self.manifest.get("revision"),
             "model_sha256": hashes["model_quantized.onnx"],
             "tokenizer_sha256": hashes["tokenizer.json"],
-            "model_dir": str(self.model_dir),
+            "model_dir": ps.EMBED_MODEL_REFERENCE,
             "provider": "CPUExecutionProvider",
             "threads": self.threads,
             "batch_size": self.batch_size,

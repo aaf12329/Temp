@@ -1,154 +1,161 @@
-# 当前暂停点（2026-10-21）
+# 产业信息研究平台
 
-爬虫与建议助手的集成正在进行，现按所有者要求暂停并保存本地提交。准确进度、检查结果、目录和恢复顺序见 [集成暂停交接](docs/集成暂停交接.md)。下文描述原有服务能力；新增集成尚未完成 API/Worker 接线，Python 环境也尚未完成全面统一。
+项目的目标很大，甚至可以说很宏大：把散落的公开信息转化为有来源、有口径、可质疑、可复核的产业判断。当前先把后端采集、研究分析和建议助手连接起来；React 页面与 Next.js 网站层留待后续。
 
-# 产业信息研究平台 · 后端服务框架
+2026-10-21：三个 Python 模块已接线，统一使用根目录 .venv。验收范围与未完成项见 [集成验收记录](docs/集成验收记录.md)，接线细节见 [集成说明](docs/集成说明.md)。
 
-## 仓库快照与克隆说明
-
-本仓库包含后端服务框架与独立的 `产业研究建议助手/` 子项目。助手仅随目录迁入，尚未接入 FastAPI、Worker 或研究数据库；前端暂未开发。
-
-上传内容为源码、测试、依赖清单和说明文档。开发机密钥、虚拟环境、聊天/记忆数据、数据库、日志和临时产物均未包含。文档中的本机路径已改为通用写法；历史测试记录描述迁移前的开发环境，不代表克隆后无需安装。
-
-使用 Python 3.12+。Windows 下可先按现有 `scripts/Setup.ps1` 建立主服务环境；该脚本将创建本地 .env 和随机服务凭据。真实爬虫仍未提供，主服务就绪检查会提示等待采集器。
-
-独立助手单独安装与演示：
-
-```powershell
-cd 产业研究建议助手
-py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.lock.txt
-.\.venv\Scripts\python.exe -m pip install --no-deps -e .
-.\.venv\Scripts\python.exe -m advisor_bot --demo chat
-```
-
-真实模型模式须在该子目录自行创建 .env，参考 .env.example 填写自己的密钥。不要把本地密钥提交到仓库。
-
-Source snapshot: backend framework and a standalone terminal research advisor. The advisor is not integrated. Recreate local environments after cloning; credentials, runtime data and generated artifacts are excluded.
-
----
-
-这是按 `docs/source/` 两份原始文档搭建的第一版服务工程。前端样式由项目发起人后续设计；当前没有创建 React/Next.js 应用，也没有实现产业推断或真实抓取算法。
-
-## 当前完成内容
-
-- FastAPI 模块化接口、OpenAPI 描述、Bearer 鉴权、v1.2 版本响应头和统一错误体。
-- 任务创建、进度查询、幂等提交、失败重试与材料读取接口。
-- 数据库持久任务队列和独立 Worker：租约、心跳、过期回收及过期执行者写入隔离。
-- 每个 URL 最多两次自动重试，仅处理 `retryable=true`；显式人工重试可开启新一轮尝试，仍复用原材料主键。
-- SQLAlchemy 数据访问、Alembic 初始迁移、SQLite 本地模式和 PostgreSQL 连接配置。
-- v1.2 数据目录、原子 JSON 快照、人工站点策略读取、规范化产物目录边界校验。
-- 可插拔 Python 爬虫适配器；测试适配器只用于自动化测试。
-- 项目根目录 `.venv`、依赖锁定文件、启动脚本与自动化检查。
-
-## 运行环境与根目录
-
-- 本机已创建 Python 3.12 虚拟环境，依赖安装在 `.venv/Lib/site-packages/`，不依赖全局 pip 包。
-- `.venv`、`.env`、依赖声明与锁定文件均位于项目根目录。
-- 原生 Windows 开发采用 SQLite + 数据库持久队列。API 与 Worker 必须使用相同数据库、数据目录及适配器配置。
-- 绑定地址默认为 `127.0.0.1`，用于本地开发。
-- PostgreSQL 驱动和可选 Compose 配置已准备；本机没有安装 Docker，未启动 PostgreSQL。
-- Celery + Redis 仍是未来候选方案，当前未安装和接入。Celery 官方不支持原生 Windows，后续采用时在 Linux/WSL/容器环境单独验证。
-
-## 启动
-
-双击根目录 `启动API.cmd`，服务默认监听 `http://127.0.0.1:8000`。
-
-- 接口文档：`http://127.0.0.1:8000/docs`
-- 存活检查：`http://127.0.0.1:8000/health/live`
-- 就绪检查：`http://127.0.0.1:8000/health/ready`
-
-**未配置真实爬虫时，存活检查为 200，就绪检查为 503，状态为 `waiting_for_crawler`。** `/v1/probe` 和任务提交返回 `E_CRAWLER_NOT_CONFIGURED`；Worker 明确退出。服务不会伪造抓取结果。
-
-接入爬虫后，在另一个终端双击 `启动Worker.cmd`。API 只接收和查询任务，Worker 独立运行耗时处理。
-
-PowerShell 手动启动方式：
-
-```powershell
-.\.venv\Scripts\python.exe -m app.cli init
-.\.venv\Scripts\python.exe -m uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000
-# 另一个终端，接入爬虫后执行：
-.\.venv\Scripts\python.exe -m app.cli worker
-```
-
-配置文件 `.env` 已生成随机 API 密钥，未写入本文或示例。打开 `.env` 查看 `INDUSTRY_API_TOKEN`，在 `/docs` 的 Authorize 中填入密钥。当前密钥代表单一可信调用方；多用户登录、项目级权限与租户隔离尚未实现。
-
-重新安装环境时运行 `scripts/Setup.ps1`；也可传入 `-PythonPath` 指定 Python 3.12+。脚本优先使用现有 `.venv`，保持已有 `.env` 不变。
-
-## 爬虫接入
-
-1. 按 `app/crawler/base.py` 实现 `probe` 和 `crawl_one`。
-2. 在自己的模块中提供无参数工厂 `create_adapter()`，返回适配器实例。
-3. 在 `.env` 配置 `INDUSTRY_CRAWLER_ADAPTER=你的模块:create_adapter`。
-4. 人工编辑 `data/policy/site_policy.json`，声明来源和允许路径。没有站点策略时，任务提交会返回 `E_POLICY_NOT_FOUND`。
-5. 重启 API 与 Worker，执行真实来源的验收。详细约定见 `docs/爬虫接入说明.md`。
-
-框架没有执行网络请求。robots、主机限速、网络超时、重定向与 DNS 安全、字节保真抓取、PDF/表格解析等由接入的采集模块实现和验收。真实发布者与发布时间缺失时保持 `null`。
-
-## HTTP 接口
-
-所有 `/v1` 接口需要 `Authorization: Bearer <token>`。可传 `X-Crawler-API-Version: 1.2`，不同版本会被拒绝；响应会标明版本。
-
-| 方法 | 路径 | 用途 |
-| --- | --- | --- |
-| POST | `/v1/probe` | URL 画像，返回 `{profiles}` |
-| POST | `/v1/jobs` | 创建任务，返回 202 和 `{job_id}`；支持 `Idempotency-Key` |
-| GET | `/v1/jobs/{job_id}` | 任务进度与统计 |
-| POST | `/v1/jobs/{job_id}/retry` | 推荐的显式失败重试入口 |
-| GET | `/v1/jobs/{job_id}/retry` | 兼容原契约；已标记弃用并禁止缓存 |
-| GET | `/v1/materials/{record_id}` | 材料记录 |
-| GET | `/v1/materials/{record_id}/text` | UTF-8 正文 |
-| GET | `/v1/materials/{record_id}/paragraphs` | 段落 NDJSON |
-| GET | `/v1/materials/{record_id}/tables/{index}?format=json` | 结构化表格，支持 `csv` |
-| GET | `/v1/site-policy/{host}` | 人工声明的站点策略 |
-
-原契约未定义 `plan` 的 HTTP 路由，当前保持未实现；同步 crawl、read_material 的完整 Material 封装，以及跨层 ResearchParams/Fact/Answer 等结构等待完整合同。
-
-## 数据和任务
+## 职责与调用关系
 
 ```text
-data/
-  platform.db                  # 本地数据库：任务及材料记录的持久事实来源
-  profile/site_profile.json    # 最新 Profile 的兼容快照（首次保存后生成）
-  policy/site_policy.json      # 人工维护；初始化不覆盖已有文件
-  raw/pages.json               # CrawlResult 兼容快照（首次完成后生成）
-  raw/html/                    # 由真实爬虫写入
-  raw/files/                   # 由真实爬虫写入
-  normalized/text/
-  normalized/para/
-  normalized/pdf/
-  normalized/tables/
+未来 React / Next.js（尚未开发）
+           │ HTTP + JSON
+           ▼
+FastAPI：校验、单调用方鉴权、任务提交、材料与结果查询
+  ├─ 短查询 → services / 数据库
+  └─ 长任务 → 持久任务表
+                 ├─ Windows：数据库队列 Worker
+                 └─ Linux：Beat 补投 → Redis → Celery Worker
+                                           │
+                     共用执行器 + CAS 租约/心跳/结果隔离
+                     ├─ IntegratedCrawler → 同解释器子进程 → webcrawl.api
+                     ├─ IntegratedResearch → 同解释器子进程 → research_api
+                     └─ IntegratedAdvisor → import advisor_bot
+                                           │
+                       数据库 + 不可变材料 + 项目 JSON 会话
 ```
 
-任务和待执行项在同一事务内保存，持久化即入队，避免“任务已保存、消息未发出”的双写问题。Worker 以条件更新领取工作项，执行期间续租；进程中断后，租约到期即可被其他 Worker 领取。执行结果用租约令牌检查归属，防止旧执行者覆盖新结果。
+采集、研究与建议模型均在后台任务中执行。probe 保留原合同同步接口，适合少量 URL。Redis 只负责投递，数据库保存正式状态；待执行行也是补投依据，消息丢失或 Redis 重启后由 Beat 再扫描，重复消息通过条件领取过滤。
 
-任务采用至少一次执行语义，外部抓取与文件写入仍须由适配器保证重入安全。材料主键固定为 `uuid5(NAMESPACE_URL, f"{job_id}|{url}")`，相同 URL 字符串保持原样。
+## Windows 安装与启动
 
-数据库事务提交后生成 `raw/pages.json`。如果快照写入失败，数据库记录仍保留，可用以下命令恢复快照：
+使用 Python 3.12，在项目根目录运行：
 
 ```powershell
-.\.venv\Scripts\python.exe -m app.cli export
+# 首次安装时可指定解释器；已有根 .venv 时省略 -PythonPath
+./scripts/Setup.ps1 -PythonPath <你的Python3.12解释器>
+./scripts/Setup.ps1
 ```
 
-## PostgreSQL 迁移入口
+脚本安装根锁定依赖、主服务和助手包，创建缺失的根 .env 并迁移数据库。已有配置保留。源码和持久数据不绑定原电脑目录；虚拟环境自身不随目录搬移复用，移动或克隆后重建。
 
-准备好可访问的 PostgreSQL 数据库后，修改 `.env` 的 `INDUSTRY_DATABASE_URL`，再运行 `app.cli init`。如果使用 `compose.yaml`，先在 `.env` 添加自己的 `POSTGRES_PASSWORD`；连接 URL 中的特殊字符需要编码。
+双击 启动API.cmd 和 启动Worker.cmd。API 默认仅监听 127.0.0.1:8000：
 
-这会在目标数据库建立表结构，**不会搬运已有 SQLite 数据**。数据迁移和 PostgreSQL 并发验收属于后续步骤。
+- /docs：交互接口文档。
+- /health/live：进程存活。
+- /health/ready：数据库迁移与采集适配器就绪，不代表外部站点或模型均可用。
 
-## 检查与后续接入
+根 .env 的 INDUSTRY_CRAWLER_ADAPTER=integrated 启用真实组件；空值保留等待爬虫兼容模式。API 与 Worker 使用相同根配置、数据库和 data 目录。
 
-双击 `运行检查.cmd`，或运行：
+采集前人工编辑 data/policy/site_policy.json；没有策略拒绝采集。配置形状示例：
+
+```json
+[{"host":"example.org","allowed_paths":["/articles/"],"disallowed_paths":[],
+  "min_interval_s":1.5,"requires_login":false,"note":"先人工核对来源和允许范围"}]
+```
+
+服务对每次请求和重定向检查主机、路径、协议、端口、实际连接 DNS 与 robots，并跨进程限速、限制响应大小。当前只开放静态 HTML 与文本 PDF；渲染/TLS 档尚未适配，明确拒绝对应参数。扫描 PDF 没有 OCR。
+
+## 采集 → 研究 → 建议
+
+所有 /v1 接口需要根服务 Bearer 凭据。在本机 .env 查看后填入 /docs 的 Authorize，不把密钥写入浏览器代码。
+
+1. POST /v1/jobs：提交 job_id、project_id、urls，返回 202。
+2. GET /v1/jobs/{job_id}：查进度。
+3. GET /v1/jobs/{job_id}/materials?project_id=...：列出材料 ID。
+4. POST /v1/research/jobs：提交项目材料和明确口径，后台导出 CSV/JSON。
+5. GET /v1/operations/{operation_id}?project_id=...：查研究或建议结果。
+6. GET /v1/operations/{operation_id}/files/{name}?project_id=...：下载登记产物。
+7. POST /v1/advisor/jobs：引用同项目材料和可选研究 ID，后台生成建议。
+8. GET /v1/projects/{project_id}/advisor/sessions/{session_id}?demo=true：查演示会话；省略 demo 查正式会话。
+
+研究请求示例，替换材料 ID：
+
+```json
+{
+  "operation_id":"research-001","project_id":"kaili",
+  "material_ids":["材料record_id"],"mode":"lexical",
+  "config":{
+    "rule_version":"kaili-v1","keywords":["酸汤"],"queries":[],
+    "subjects":["酸汤产业"],"regions":["凯里"],
+    "forecast_at":"2026-10-21T00:00:00+08:00"
+  }
+}
+```
+
+lexical 显式使用关键词，不伪造向量分数。semantic 使用本地 CPU ONNX，首次准备与计算验收：
 
 ```powershell
-.\.venv\Scripts\python.exe -m ruff check app tests scripts\init_config.py
-.\.venv\Scripts\python.exe -m pytest -q
+./.venv/Scripts/python.exe -m app.cli model-setup
+./.venv/Scripts/python.exe scripts/verify_environment.py
 ```
 
-测试包含鉴权、错误与参数校验、重复提交、并发领取、租约恢复、自动重试上限、部分成功、人工策略保护、中文段落偏移、材料读取和真实进程间的持久任务运行。测试不访问真实网站。
+模型固定 revision 并记录哈希，不隐式下载。语义阈值未经独立标注集校准。机器事实候选保持 pending；没有人工审核的同口径连续时间序列时，趋势返回 insufficient_data。
 
-接口描述可从 `/openapi.json` 获取，根目录 `docs/openapi.json` 也保存了当前版本，供后续 Next.js/TypeScript 接入。前端接入时使用服务端保存密钥。
+建议请求示例：
 
-完整用户系统、项目/口径管理、产业抽取与推断、审核历史和研究报告属于后续业务开发；当前主要交付 L1 合同对应的服务底座，`project_id` 与 `rule_version` 已作为关联字段保留。
+```json
+{
+  "operation_id":"advice-001","project_id":"kaili","session_id":"default",
+  "question":"这些材料还缺哪些统计口径？","material_ids":["材料record_id"],
+  "research_id":"research-001","demo":true
+}
+```
 
-文档缺项与待确认事项见 `docs/接口缺项与实现边界.md`。
+demo 使用标注的假模型。真实模式在根 .env 设置 INDUSTRY_ADVISOR_API_KEY；接口不接受模型密钥、模型地址、任意路径或工具。建议不自动写人工事实。同操作 ID 与请求只执行一次，变更请求返回冲突；模型执行中断或结果未知时停止，核对会话后决定是否使用新 ID。
+
+## 助手终端
+
+启动建议助手.cmd 和子目录原按钮均使用根环境。手动运行：
+
+```powershell
+./.venv/Scripts/python.exe -m app.advisor_cli --project kaili --demo chat
+./.venv/Scripts/python.exe -m app.advisor_cli --project kaili --session default chat
+./.venv/Scripts/python.exe -m app.advisor_cli --project kaili memory list
+```
+
+终端与接口共用同项目 JSON 会话及人工记忆；终端不自动读平台材料，带证据建议使用任务接口。独立 advisor_bot 仍可单独安装，包本身不依赖 FastAPI。
+
+## 相对路径与目录
+
+配置和持久引用相对项目根或逻辑 data 根。程序执行时解析真实路径用于操作与边界检查，不把本机绝对路径写进 API 或研究导出。
+
+```text
+./
+  .venv/                         唯一 Python 环境，不入库
+  .env                           唯一本机服务配置，不入库
+  app/                           服务、适配、任务、调度
+  components/crawler/            爬虫研究源码，不写运行数据
+  产业研究建议助手/               独立助手源码，不另建环境
+  data/
+    platform.db                  Windows 任务、材料登记与操作结果
+    policy/site_policy.json      人工策略
+    raw/ normalized/             内容哈希寻址材料，重抓不覆盖旧字节
+    research/<run_id>/            CSV、JSON、报告
+    models/                      固定版本 CPU 模型
+    advisor/<project_id>/        正式 JSON 会话、记忆、操作缓存
+    advisor_demo/<project_id>/   隔离的演示数据
+    workspaces/                  隔离运行副本，不是事实源
+  work/                          源码备份、检查记录，不入库
+```
+
+原有正文、段落、表格读取和 POST/兼容 GET retry 保留。数据库是状态事实源，raw/pages.json 是兼容快照，可通过 python -m app.cli export 重建。
+
+## Linux 容器入口
+
+Dockerfile 与 compose.yaml 提供 API、Celery Worker、单实例 Beat、Redis 和 PostgreSQL。先准备根 .env，额外设置仅含 URL 安全字符的 POSTGRES_PASSWORD，然后：
+
+```text
+docker compose up --build -d
+```
+
+Compose 先迁移数据库再启动服务。Python 服务共用同一镜像和数据卷。Linux 根据根 pyproject.toml 安装，采用 XGBoost CPU 包；Windows 验证版本保存在根锁文件。Redis 不暴露主机端口。容器卷与 Windows data 分开，已有 SQLite 和模型缓存不会自动迁移。
+
+本机未安装 Docker/WSL，容器构建及真实 Redis/PostgreSQL 联调待验证。Celery 的 Windows solo 测试不代表正式部署支持。配置依据 [Celery 配置](https://docs.celeryq.dev/en/stable/userguide/configuration.html)、[周期任务](https://docs.celeryq.dev/en/stable/userguide/periodic-tasks.html) 和 [XGBoost 安装说明](https://xgboost.readthedocs.io/en/stable/install.html)。
+
+## 检查与边界
+
+运行 运行检查.cmd 或 ./scripts/Test.ps1，分别执行服务、独立助手、爬虫离线测试并检查依赖一致性。实际 CPU 模型计算用 scripts/verify_environment.py，结果在 work/environment-check.json。
+
+当前为单可信调用方服务，project_id 是材料归属检查，不等于用户授权。多用户登录与项目授权、React/Next.js、审核管理 HTTP 界面、训练服务入口、分布式文件存储和多主机限速未实施。文件锁限速要求共享同一文件系统。
+
+原合同在 docs/source/，正式定义缺项在 docs/接口缺项与实现边界.md；历史“未接线”描述以本页当前状态为准。

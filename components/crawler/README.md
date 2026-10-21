@@ -1,3 +1,5 @@
+> 2026-10-21：本副本已接入平台采集与研究任务。统一使用平台根 .venv，运行数据在平台 data 目录；本页下文是独立爬虫能力与历史验收，当前服务范围见根 README.md。
+
 # 凯里酸汤鱼产业调查（贵阳）
 
 **Crawler — Kaili Sour-Soup Fish Industry Survey (Guiyang)**
@@ -84,7 +86,7 @@ docs/本轮验证记录.md              测试、磁盘和实测台账
 
 | 项 | 值 |
 |---|---|
-| 本地路径 | `C:\Users\Guards\Desktop\Crawler` |
+| 本地路径 | `../Crawler` |
 | Git | 分支 `main`，remote `origin` → `github.com/aaf12329/Crawler.git`；**push 只由本人执行** |
 | 虚拟环境 | `myvenv\Scripts\python.exe` → **Python 3.10.0** |
 | 依赖清单 | requirement.txt 与 requirements.lock.txt；新增 CPU ONNX、tokenizers、scikit-learn、XGBoost；无 PyTorch/CUDA |
@@ -92,7 +94,7 @@ docs/本轮验证记录.md              测试、磁盘和实测台账
 | 代码 | 37 个非空 Python 文件 / 12734 行；测试 14 文件 / 5678 行 / 522 项 |
 | 数据产物 | 跑完是 `data\raw\`（原始字节 + `pages.json`）/ `data\normalized\`（正文 / 段落锚点 / 表格三件套 / **宽表**）/ `data\jobs\`（任务账本）/ `data\discover\`（链接候选池）/ `data\profile\`（判定画像）/ `data\policy\`（站点策略）/ `data\parsed\`（旧链路产物）—— 已 gitignore，可再生成 |
 | 忽略规则 | myvenv/、__pycache__/、*.pyc、data/、.env、work/、reports/、.pytest_cache/；.env.example 可入库 |
-| 协作规范 | 本地 `C:\Users\Guards\Desktop\CoMind\01_AI项目协作参考`；云端 [aaf12329/CoMind](https://github.com/aaf12329/CoMind)（详见 §7） |
+| 协作规范 | 本地 `../CoMind/01_AI项目协作参考`；云端 [aaf12329/CoMind](https://github.com/aaf12329/CoMind)（详见 §7） |
 
 ---
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""纯逻辑测试 —— 零网络、零真实数据写入（《工程架构规范》§08）。
+r"""纯逻辑测试 —— 零网络、零真实数据写入（《工程架构规范》§08）。
 
 运行（仓库根目录）：
     .\myvenv\Scripts\python.exe -m unittest discover -s tests -v

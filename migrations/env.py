@@ -16,7 +16,7 @@ from app.db.session import Database
 
 config = context.config
 if config.config_file_name:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 settings = config.attributes.get("settings") or Settings()
 target_metadata = Base.metadata
 

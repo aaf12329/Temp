@@ -49,3 +49,24 @@ def read_json(path: Path):
 def write_json(path: Path, value) -> None:
     """序列化 JSON 并原子落盘；由材料快照与机器人会话状态调用。"""
     write_text(path, json.dumps(value, ensure_ascii=False, indent=2) + "\n")
+
+
+def read_bytes(path: Path) -> bytes:
+    """读取保真字节；由材料晋升与隔离副本构造调用。"""
+    return path.read_bytes()
+
+
+def write_bytes(path: Path, content: bytes) -> None:
+    """原子保存保真字节；由采集适配器保存不可变材料调用。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with NamedTemporaryFile(dir=path.parent, suffix=".tmp", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary and temporary.exists():
+            temporary.unlink()

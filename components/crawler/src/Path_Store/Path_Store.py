@@ -73,9 +73,10 @@ from pathlib import Path
 # 本文件在 <仓库根>\src\Path_Store\Path_Store.py：
 # 往上两级是 src，再往上一级是仓库根
 _HERE = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(_HERE, os.pardir, os.pardir))
+SOURCE_ROOT = os.path.abspath(os.path.join(_HERE, os.pardir, os.pardir))
+PROJECT_ROOT = os.path.abspath(os.environ.get("INDUSTRY_COMPONENT_WORKSPACE", SOURCE_ROOT))
 
-SRC_DIR = os.path.join(PROJECT_ROOT, "src")
+SRC_DIR = os.path.join(SOURCE_ROOT, "src")
 SRC_WEBCRAWL_DIR = os.path.join(SRC_DIR, "webcrawl")
 SRC_PATH_STORE_DIR = os.path.join(SRC_DIR, "Path_Store")
 SRC_EXTRACT_DIR = os.path.join(SRC_DIR, "extract")
@@ -83,7 +84,7 @@ ENTRY_MAIN = os.path.join(SRC_DIR, "main.py")
 TESTS_DIR = os.path.join(PROJECT_ROOT, "tests")
 
 # ------------------------------------------------------------ 种子数据（只读输入）
-SITES_DIR = os.path.join(PROJECT_ROOT, "sites")
+SITES_DIR = os.path.join(SOURCE_ROOT, "sites")
 SEED_MARKET = os.path.join(SITES_DIR, "市场.md")
 SEED_UPSTREAM = os.path.join(SITES_DIR, "上游.md")
 SEED_OTHER = os.path.join(SITES_DIR, "其他数据.md")
@@ -131,11 +132,14 @@ AGENTS = os.path.join(PROJECT_ROOT, "AGENTS.md")
 REQUIREMENTS = os.path.join(PROJECT_ROOT, "requirement.txt")
 
 # 研究分析独立于采集；模型缓存和运行数据不进 Git。
-RESEARCH_CONFIG = os.path.join(PROJECT_ROOT, "config", "research.json")
+RESEARCH_CONFIG = os.path.join(SOURCE_ROOT, "config", "research.json")
 ENV_FILE = os.path.join(PROJECT_ROOT, ".env")
 RESEARCH_DIR = os.path.join(DATA_DIR, "research")
 MODELS_DIR = os.path.join(DATA_DIR, "models")
-EMBED_MODEL_DIR = os.path.join(MODELS_DIR, "bge-small-zh-v1.5-int8")
+EMBED_MODEL_DIR = os.environ.get("INDUSTRY_COMPONENT_MODEL_DIR", os.path.join(
+    MODELS_DIR, "bge-small-zh-v1.5-int8"))
+EMBED_MODEL_REFERENCE = os.environ.get("INDUSTRY_COMPONENT_MODEL_REFERENCE",
+                                      "data/models/bge-small-zh-v1.5-int8")
 EMBED_MODEL_PATH = os.path.join(EMBED_MODEL_DIR, "model_quantized.onnx")
 EMBED_TOKENIZER_PATH = os.path.join(EMBED_MODEL_DIR, "tokenizer.json")
 EMBED_MANIFEST_PATH = os.path.join(EMBED_MODEL_DIR, "manifest.json")

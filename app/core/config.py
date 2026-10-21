@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     poll_interval_s: float = Field(default=1, ge=0.05)
     lease_seconds: int = Field(default=120, ge=6)
     code_version: str = "0.1.0"
+    advisor_api_key: SecretStr = SecretStr("")
+    advisor_base_url: str = "https://api.deepseek.com"
+    advisor_model: str = "deepseek-flash"
+    advisor_timeout_s: float = Field(default=60, gt=0, le=300)
+    advisor_max_tokens: int = Field(default=2000, ge=128, le=8192)
+    bridge_timeout_s: float = Field(default=600, ge=30, le=7200)
+    task_backend: str = Field(default="database", pattern="^(database|celery)$")
+    redis_url: SecretStr = SecretStr("redis://127.0.0.1:6379/0")
 
     @field_validator("data_dir")
     @classmethod

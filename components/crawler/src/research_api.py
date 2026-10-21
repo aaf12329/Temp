@@ -115,9 +115,9 @@ def _code_version() -> str:
     """只返回提交版本及 dirty 标记，不输出机器身份。"""
     try:
         version = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=ps.PROJECT_ROOT, text=True).strip()
+            ["git", "rev-parse", "HEAD"], cwd=ps.SOURCE_ROOT, text=True).strip()
         dirty = subprocess.check_output(
-            ["git", "status", "--porcelain"], cwd=ps.PROJECT_ROOT, text=True)
+            ["git", "status", "--porcelain"], cwd=ps.SOURCE_ROOT, text=True)
         return version + ("+dirty" if dirty else "")
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
@@ -129,6 +129,19 @@ def _source_fingerprint() -> str:
     hashes = {str(path.relative_to(source)): io_utils.sha256_of(io_utils.read_bytes(path))
               for path in sorted(source.rglob("*.py"))}
     return io_utils.sha256_of(json.dumps(hashes, sort_keys=True))
+
+
+def _restore_references(value, mapping: dict) -> None:
+    """将隔离副本引用还原为平台不可变相对引用；由服务分析导出前调用，不改原文。"""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key in {"text_path", "paragraph_file"} and isinstance(child, str):
+                value[key] = mapping.get(child, child)
+            else:
+                _restore_references(child, mapping)
+    elif isinstance(value, list):
+        for child in value:
+            _restore_references(child, mapping)
 
 
 # ===== ③ 主流程 =====
@@ -174,6 +187,10 @@ def analyze(request: dict[str, Any]) -> dict:
                 "documents": corpus["documents"], "passages": scored, "facts": facts,
                 "series": series, "issues": corpus["issues"], "manifest": manifest,
                 "trend": trained}
+        references = request.get("reference_map", {})
+        if references:
+            _restore_references(data, references)
+            data["manifest"]["material_reference_map"] = references
         paths = _export(data, request.get("output_dir", ps.RESEARCH_DIR))
         return _response("ok", {"counts": counts, "paths": paths,
                                 "trend_status": trained["status"]})

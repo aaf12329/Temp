@@ -1,5 +1,15 @@
-# Optional PostgreSQL infrastructure; Docker is not installed by this project.
-# Set POSTGRES_PASSWORD in the root .env before running docker compose up -d.
+x-python-service: &python-service
+  build: .
+  env_file: .env
+  environment: &python-environment
+    INDUSTRY_DATABASE_URL: postgresql+psycopg://industry:${POSTGRES_PASSWORD:?Set a URL-safe database password}@postgres:5432/industry
+    INDUSTRY_DATA_DIR: data
+    INDUSTRY_CRAWLER_ADAPTER: integrated
+    INDUSTRY_TASK_BACKEND: celery
+    INDUSTRY_REDIS_URL: redis://redis:6379/0
+  volumes:
+    - industry_data:/srv/industry/data
+
 services:
   postgres:
     image: postgres:17
@@ -16,5 +26,44 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  init:
+    <<: *python-service
+    command: ["python", "-m", "app.cli", "init"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  api:
+    <<: *python-service
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+  worker:
+    <<: *python-service
+    command: ["python", "-m", "celery", "-A", "app.celery_app:celery", "worker", "--loglevel=INFO", "--concurrency=2", "-Q", "control,crawl,operations"]
+    depends_on:
+      init:
+        condition: service_completed_successfully
+  beat:
+    <<: *python-service
+    command: ["python", "-m", "celery", "-A", "app.celery_app:celery", "beat", "--loglevel=INFO", "--schedule=data/celerybeat-schedule"]
+    depends_on:
+      init:
+        condition: service_completed_successfully
 volumes:
   postgres_data:
+  redis_data:
+  industry_data:

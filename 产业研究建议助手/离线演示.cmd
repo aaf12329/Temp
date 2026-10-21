@@ -1,5 +1,6 @@
 @echo off
-cd /d "%~dp0"
+chcp 65001 >nul
+cd /d "%~dp0.."
 set PYTHONUTF8=1
-".venv\Scripts\python.exe" -m advisor_bot --demo chat
+".venv\Scripts\python.exe" -m app.advisor_cli --project terminal --demo chat
 pause

@@ -228,8 +228,11 @@ class GuardedTransport:
             is_robots = urlsplit(url).path == "/robots.txt"
             delay = 0 if is_robots else self._robots_for(url, timeout, user_agent)
             result = self._request(url, timeout, user_agent, robots=is_robots, crawl_delay=delay)
-            if result["status"] >= 400 and result["status"] not in {404, 410}:
+            if result["status"] >= 400 and not is_robots:
                 result["error"] = f"HTTP {result['status']}"
+                self.last_error = {"code": "E_HTTP_" + str(result["status"]),
+                                   "message": "来源站点返回 HTTP " + str(result["status"]),
+                                   "retryable": result["status"] in {408, 429, 500, 502, 503, 504}}
             return result
         except (ValueError, OSError, URLError, zlib.error) as exc:
             code = "E_NETWORK_POLICY" if isinstance(exc, NetworkPolicyError) else "E_CONN"

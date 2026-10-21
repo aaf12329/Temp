@@ -36,9 +36,11 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from Path_Store import Path_Store as ps
     from webcrawl import errors
 except ImportError:                                  # 直接运行本文件（自测入口）
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from Path_Store import Path_Store as ps
     from webcrawl import errors
 
 # ---------------------------------------------------------------- 常量区
@@ -73,7 +75,7 @@ def code_version() -> str:
         return _CODE_VERSION_CACHE["v"]
     version = "unknown"
     try:
-        root = Path(__file__).resolve().parents[2]
+        root = Path(ps.SOURCE_ROOT)
         out = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"], cwd=str(root),
             capture_output=True, text=True, timeout=5)
@@ -95,7 +97,7 @@ def _rel(path: str | None) -> str | None:
     if not path:
         return None
     try:
-        root = Path(__file__).resolve().parents[2]
+        root = Path(ps.PROJECT_ROOT)
         return Path(path).resolve().relative_to(root).as_posix()
     except Exception:
         return str(path).replace(os.sep, "/")

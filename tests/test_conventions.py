@@ -41,11 +41,11 @@ def test_maintenance_module_imports_do_not_write_files(tmp_path, monkeypatch):
     from app.common.paths import DEPENDENCY_LOCK, ENV_FILE, OPENAPI_FILE
 
     targets = [ENV_FILE, DEPENDENCY_LOCK, OPENAPI_FILE]
-    before = {path: path.stat().st_mtime_ns for path in targets}
+    before = {path: path.stat().st_mtime_ns if path.exists() else None for path in targets}
     monkeypatch.chdir(tmp_path)
     runpy.run_path(str(PROJECT_ROOT / "scripts/init_config.py"), run_name="import_check")
     runpy.run_path(str(PROJECT_ROOT / "scripts/export_metadata.py"), run_name="import_check")
-    assert before == {path: path.stat().st_mtime_ns for path in targets}
+    assert before == {path: path.stat().st_mtime_ns if path.exists() else None for path in targets}
     assert not list(tmp_path.iterdir())
 
 

@@ -64,3 +64,21 @@ class ProfileRow(Base):
     __tablename__ = "profiles"
     url: Mapped[str] = mapped_column(String(4096), primary_key=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class OperationRow(Base):
+    """研究与建议的持久任务；令牌隔离过期执行者。"""
+
+    __tablename__ = "operations"
+    operation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(64), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    request_data: Mapped[dict[str, Any]] = mapped_column(JSON)
+    request_hash: Mapped[str] = mapped_column(String(64))
+    state: Mapped[str] = mapped_column(String(20), index=True)
+    created_at: Mapped[float] = mapped_column(Float)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    lease_until: Mapped[float | None] = mapped_column(Float, index=True)
+    lease_token: Mapped[str | None] = mapped_column(String(36))
+    result_data: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    error_data: Mapped[dict[str, Any] | None] = mapped_column(JSON)
