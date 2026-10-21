@@ -1,10 +1,27 @@
 # 产业信息研究平台
 
-项目的目标很大，甚至可以说很宏大：把散落的公开信息转化为有来源、有口径、可质疑、可复核的产业判断。后端采集、研究分析和建议助手已连接；当前另有独立 React/Next.js 页面原型，后端接线留待后续。
+项目的目标很大，甚至可以说很宏大：把散落的公开信息转化为有来源、有口径、可质疑、可复核的产业判断。当前已完成本机网页流程总装：React/Next.js → FastAPI → 持久Worker → Python采集/分析/可选GAN/XGBoost → 最终建议；另保留独立设计预览与CLI。
 
-独立前端见 [frontend/README.md](frontend/README.md)：打开即用，没有登录、注册或用户中心。九个视图覆盖输入、整理、建模选择、GAN生成、t-SNE人工确认、XGBoost评估及最终建议。全部使用浏览器内存与标注的合成数据，不提交真实任务、不调用模型。视觉设计后续由人类确认；完整交互验收见 [前端后半流程验收](docs/前端后半流程验收记录.md)。
+## 使用的技术与模型
 
-Standalone frontend: React/Next.js/TypeScript with no login or backend connection. Nine mock views cover the complete interaction through GAN review, XGBoost evaluation and the final report. All results are synthetic; styling remains provisional. See the frontend guide for local preview.
+| 技术或模型 | 职责 | 运行位置 |
+| --- | --- | --- |
+| React + TypeScript | 网页组件、表单、用户阶段选择与结果展示 | 浏览器 |
+| Next.js / Node.js | 页面与同源接口转发，服务密钥仅留服务器端 | 本机Node进程 |
+| FastAPI / Uvicorn | 参数与权限校验、阶段顺序、任务提交与产物下载 | 根Python环境 |
+| BGE-small-zh-v1.5（INT8 ONNX） | 用户需求与网页内容的向量匹配 | 本地CPU |
+| IsolationForest | 条件满足时标记训练异常；默认不自动删除 | 本地CPU |
+| WGAN-GP（PyTorch / TensorFlow） | 用户先选择才训练，生成数量=真实训练集×5，生成后再次确认采用 | 本地，设备沿用JSON |
+| XGBoost | 同口径年度数据的回归预测与独立真实测试评估 | 本地CPU |
+| 规则、pandas / SciPy / pyampute | 数值抽取、单位检查、去重、清洗及缺失诊断 | 本地 |
+| t-SNE / XGBoost原生TreeSHAP | 分布可视化与模型解释；不等于质量或因果证明 | 本地 |
+| 外部LLM API | 只在最后解读证据、指标、限制与建议；缺少密钥仍导出数据报告 | 远程API |
+
+Windows复用既有SQLite持久队列；Linux Celery/Redis/PostgreSQL配置仍保留，尚未做真实部署验收。只有CLI不使用SQL；网页研究产物仍是CSV/JSON/PNG，助手会话仍是JSON。
+
+网页入口见 [frontend/README.md](frontend/README.md)：打开即用，没有登录、注册或用户中心。“实际研究”连接本机服务，“设计预览”保留九个合成演示视图。桌面的“产业研究平台_前端设计交接”及同名ZIP保持独立、未接后端，供人类设计师工作。实际接线说明与验收见 [网页总装说明](docs/网页总装说明.md)。
+
+Local assembly: React/Next.js forwards to FastAPI and a durable Python worker. Users opt in before GAN training and confirm generated data after review; generation is five times the real training count. Real validation/test data remain isolated. A separate nine-view design demo and standalone frontend handoff remain available. BGE, IsolationForest, WGAN-GP and XGBoost run locally; only final language analysis uses an external API.
 
 2026-10-21：三个 Python 模块已接线，统一使用根目录 .venv。验收范围与未完成项见 [集成验收记录](docs/集成验收记录.md)，接线细节见 [集成说明](docs/集成说明.md)。
 
@@ -15,8 +32,8 @@ Standalone frontend: React/Next.js/TypeScript with no login or backend connectio
 ## 职责与调用关系
 
 ```text
-React / Next.js（独立页面原型，暂未接线）
-           ⋮ 后续 HTTP + JSON
+React / Next.js（实际研究 + 独立设计预览）
+           │ 同源Node转发：HTTP + JSON，Bearer留在服务器
            ▼
 FastAPI：校验、单调用方鉴权、任务提交、材料与结果查询
   ├─ 短查询 → services / 数据库
@@ -27,7 +44,8 @@ FastAPI：校验、单调用方鉴权、任务提交、材料与结果查询
                      共用执行器 + CAS 租约/心跳/结果隔离
                      ├─ IntegratedCrawler → 同解释器子进程 → webcrawl.api
                      ├─ IntegratedResearch → 同解释器子进程 → research_api
-                     └─ IntegratedAdvisor → import advisor_bot
+                     ├─ IntegratedAdvisor → import advisor_bot
+                     └─ pipeline_service → 分阶段CLI核心 → GAN确认 / XGBoost / 最终助手
                                            │
                        数据库 + 不可变材料 + 项目 JSON 会话
 ```
@@ -36,11 +54,11 @@ FastAPI：校验、单调用方鉴权、任务提交、材料与结果查询
 
 ## Windows 安装与启动
 
-推荐双击根目录 **一键启动.bat**：调用 [快速部署](快速部署/README.md) 中的脚本，创建或复用根 `.venv`、安装 Python 依赖、识别 frontend/package.json 安装 npm 依赖，再启动 FastAPI 与 Worker。依赖未变时复用；支持在本机配置指定 Conda 解释器。根 `requirement.txt` 保留手动安装入口。独立前端另在 frontend 运行 npm run dev，不随该按钮启动或接入后端。
+推荐双击根目录 **一键启动.bat**：调用 [快速部署](快速部署/README.md) 中的脚本，创建或复用根 `.venv`、安装 Python 依赖、识别 frontend/package.json 安装 npm 依赖，再启动 FastAPI、Worker和Next.js。默认网页 http://127.0.0.1:3000 ，API文档 http://127.0.0.1:8000/docs 。依赖未变时复用；支持明确指定已有Conda环境。根 `requirement.txt` 保留手动安装入口。已有3000/8000进程时需先正常关闭，入口不会接管其他服务。
 
 启动前先显示 CPU、内存、显卡及 NVIDIA 显存/驱动，提供 CPU、NVIDIA GPU、按硬件自动选择和高级选项。选择保存在本机配置；GPU 安装后验证实际 CUDA 运算。CPU/GPU 目前对应 WGAN 的 PyTorch 后端，原训练 JSON 不随硬件降档。
 
-Quick start: run `一键启动.bat` to prepare the root environment and start API/Worker. Manual Conda interpreters are supported through local deployment config; npm dependencies are installed only when a frontend project exists. See the deployment guide for prerequisites and configuration.
+Quick start: run `一键启动.bat` to prepare the root environment and start API, worker and the standard Next.js frontend. Manual Conda interpreters remain supported. See the deployment guide for prerequisites and configuration. Final acceptance is paused at the owner's request.
 
 Hardware is shown before an interactive CPU/CUDA selection. Choices are remembered locally, CUDA is verified with a real operation, and the original training parameters remain unchanged.
 

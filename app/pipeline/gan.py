@@ -18,10 +18,12 @@ from app.pipeline.plots import gan_plot, gan_tsne
 def augment(frame, config, paths, threads: int):
     """仅拟合传入训练表，复用两后端原 WGAN-GP 算法；返回 (表或None, 报告)。"""
     config, source = load_gan_settings(config)
+    requested = len(frame) * config.generation_multiplier
     report = {"model": "WGAN-GP", "backend": config.backend, "device": config.params.device,
               "params": config.params.model_dump(mode="json"), "status": "skipped",
               "real_train_rows": len(frame), "synthetic_rows": 0, "quality": None,
-              "config_source": source}
+              "config_source": source, "generation_multiplier": config.generation_multiplier,
+              "requested_synthetic_rows": requested, "user_accepted": False}
     if config.mode == "off" or len(frame) < config.min_real_samples:
         return None, {**report, "reason": f"未启用或真实训练样本不足 {config.min_real_samples} 行"}
     try:
@@ -46,7 +48,8 @@ def augment(frame, config, paths, threads: int):
         params = WGANConfig(**config.params.model_dump())
         trained = trainer(frame, params, save_directory=paths.gan_directory(), overwrite=True)
         report["device"] = trained.device
-        generated = generate_samples(trained, config.n_generate, seed=params.seed,
+        print(f"[生成数量] 真实训练 {len(frame)} × 5 = {requested}；原JSON固定数量不再生效", flush=True)
+        generated = generate_samples(trained, requested, seed=params.seed,
                                       batch_size=config.generation_batch_size)
         # 变化量是原值的确定函数，不允许 GAN 自行生成互相矛盾的派生特征。
         if {"latest_value", "previous_value", "older_value", "change", "prior_change",
@@ -60,7 +63,8 @@ def augment(frame, config, paths, threads: int):
         quality = generated_quality(frame, generated)
         marked = generated.copy()
         marked["is_synthetic"] = True
-        marked["accepted_for_model"] = quality["accepted"]
+        marked["quality_passed"] = quality["accepted"]
+        marked["accepted_for_model"] = False  # 初步检查通过仍须用户另行确认。
         write_frame(paths.file("generated"), marked)
         write_json(paths.file("quality"), quality)
         gan_plot(trained.history, paths.file("gan_plot"))

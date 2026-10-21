@@ -18,6 +18,7 @@ from sqlalchemy import text
 from starlette.exceptions import HTTPException
 
 from app.api.integration import router as integration_router
+from app.api.pipeline import router as pipeline_router
 from app.api.routes import router
 from app.core.config import Settings
 from app.core.errors import ServiceError
@@ -144,4 +145,5 @@ def create_app(settings: Settings | None = None, adapter=None) -> FastAPI:
 
     application.include_router(router)
     application.include_router(integration_router)
+    application.include_router(pipeline_router)
     return application

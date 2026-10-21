@@ -1842,6 +1842,152 @@
           }
         }
       }
+    },
+    "/v1/pipeline/jobs": {
+      "post": {
+        "tags": [
+          "pipeline"
+        ],
+        "summary": "Submit",
+        "description": "校验人工阶段与父任务，提交后立即返回；由浏览器服务转发层调用。",
+        "operationId": "submit_v1_pipeline_jobs_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Crawler-API-Version",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Crawler-Api-Version"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pipeline/{operation_id}/files/{name}": {
+      "get": {
+        "tags": [
+          "pipeline"
+        ],
+        "summary": "Download",
+        "description": "只下载同项目已完成操作登记的文件，拒绝目录遍历及未登记文件。",
+        "operationId": "download_v1_pipeline__operation_id__files__name__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "operation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "title": "Operation Id"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "X-Crawler-API-Version",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Crawler-Api-Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2535,6 +2681,103 @@
           "text_path"
         ],
         "title": "PdfInfo"
+      },
+      "PipelineRequest": {
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "title": "Operation Id"
+          },
+          "project_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "title": "Project Id",
+            "default": "local"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "prepare",
+              "gan",
+              "model"
+            ],
+            "title": "Stage"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "urls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Urls"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Question",
+            "default": ""
+          },
+          "framework": {
+            "type": "string",
+            "enum": [
+              "pytorch",
+              "tensorflow"
+            ],
+            "title": "Framework",
+            "default": "pytorch"
+          },
+          "use_generated": {
+            "type": "boolean",
+            "title": "Use Generated",
+            "default": false
+          },
+          "llm": {
+            "type": "string",
+            "enum": [
+              "api",
+              "off",
+              "demo"
+            ],
+            "title": "Llm",
+            "default": "api"
+          },
+          "retrieval": {
+            "type": "string",
+            "enum": [
+              "bge-small-zh-v1.5-int8",
+              "keywords"
+            ],
+            "title": "Retrieval",
+            "default": "bge-small-zh-v1.5-int8"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "operation_id",
+          "stage"
+        ],
+        "title": "PipelineRequest",
+        "description": "一次人工阶段对应一次持久任务；父操作必须来自同项目且已经完成。"
       },
       "ProbeRequest": {
         "properties": {

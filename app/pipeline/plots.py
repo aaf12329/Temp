@@ -103,6 +103,33 @@ def gan_plot(history, destination):
     plt.close(figure)
 
 
+def comparison_plot(metrics, destination):
+    """同一真实测试集分别展示MAE/RMSE/R²，量纲不混在一张坐标轴。"""
+    plt = _pyplot()
+    figure, axes = plt.subplots(1, 3, figsize=(13, 4))
+    for axis, name in zip(axes, ("mae", "rmse", "r2")):
+        labels = [label for label, values in metrics.items() if values.get(name) is not None]
+        axis.bar(labels, [metrics[label][name] for label in labels], color="#223c64")
+        axis.set_title(name.upper())
+        axis.tick_params(axis="x", rotation=25)
+    figure.suptitle("Independent real test set; synthetic data excluded")
+    figure.tight_layout()
+    save_figure(destination, figure)
+    plt.close(figure)
+
+
+def shap_plot(names, values, destination):
+    """绘制XGBoost原生TreeSHAP绝对贡献，不把模型解释当成因果关系。"""
+    plt = _pyplot()
+    figure, axis = plt.subplots(figsize=(8, 4))
+    order = np.argsort(values)
+    axis.barh(np.asarray(names)[order], np.asarray(values)[order], color="#223c64")
+    axis.set(xlabel="Mean absolute TreeSHAP contribution", title="Real test features; not causality")
+    figure.tight_layout()
+    save_figure(destination, figure)
+    plt.close(figure)
+
+
 def gan_tsne(real, generated, paths, *, accepted: bool, max_points=2000, threads=None, seed=42,
              max_iter=1000, perplexity=None):
     """训练数据拟合尺度，固定随机抽样后联合降维真实/生成样本；不接收验证和测试。"""

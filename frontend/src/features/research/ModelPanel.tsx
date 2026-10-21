@@ -17,10 +17,7 @@ export function ModelPanel({ choice, trainCount, generated, onChange, onConfirm,
     {choice.useGan && <><fieldset><legend>训练框架</legend>
       <label><input type="radio" name="framework" checked={choice.framework === "pytorch"} onChange={() => onChange({ ...choice, framework: "pytorch" })} /> PyTorch</label>
       <label><input type="radio" name="framework" checked={choice.framework === "tensorflow"} onChange={() => onChange({ ...choice, framework: "tensorflow" })} /> TensorFlow</label>
-    </fieldset><label className="field" htmlFor="gan-ratio">生成数量 / 真实训练数量</label>
-      <select id="gan-ratio" value={choice.ratio} onChange={(event) => onChange({ ...choice, ratio: Number(event.target.value) })}>
-        {[.5, 1, 2, 5].map((ratio) => <option key={ratio} value={ratio}>{ratio} 倍</option>)}
-      </select>
+    </fieldset><p><strong>生成数量 / 真实训练数量：固定 5 倍。</strong></p>
       <p role="status">{trainCount} 条真实训练数据 × {choice.ratio} = 计划生成 {generated} 条；合计 {trainCount + generated} 条（演示）。</p>
       <p className="muted">训练轮数与生成量分开。5000轮仅沿用配置说明；本页不读取或修改项目 JSON。</p></>}
     <div className="notice">本页面仅切换演示阶段，不启动任何训练任务。</div>

@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "产业信息研究 · 页面原型",
-  description: "独立前端结构演示，范围到 GAN 训练之前。",
+  title: "产业信息研究平台",
+  description: "公开信息整理、可选WGAN增强、XGBoost评估与研究建议；另有独立设计预览。",
 };
 
 /** 为所有页面提供语言与文档结构；由 Next.js 调用。 */

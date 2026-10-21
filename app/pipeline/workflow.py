@@ -130,11 +130,13 @@ def model(message):
         destination = paths.series(digest)
         try:
             report = train_series(grouped[key], config, destination, message["forecast_at"],
-                                  plan=message.get("plan", False))
+                                  plan=message.get("plan", False), stage=message.get("stage", "fit"),
+                                  use_generated=message.get("use_generated", False))
         except (ValueError, RuntimeError, ImportError, FloatingPointError) as exc:
             report = {"series_id": key, "scope": grouped[key][0]["scope"], "status": "model_error",
                       "requirements": [f"本地模型未完成：{type(exc).__name__}，保留数据并继续总结"],
-                      "needs_gan": False}
+                      "needs_gan": False, "gan": {"status": "unavailable",
+                          "reason": "本地模型未完成，保留已有数据和错误原因"}}
         report["directory"] = destination.root.relative_to(paths.root).as_posix()
         reports.append(report)
         print(f"[建模] {report['scope']}：{report['status']}", flush=True)
@@ -145,8 +147,10 @@ def model(message):
     requirements = [] if reports else ["没有口径、发布时间、年份均明确且无冲突的同口径年度候选；直接总结已有信息"]
     for reason in requirements:
         print(f"[不能建模] {reason}", flush=True)
-    result = {"status": "modeled" if any(r["status"] == "exploratory_model" for r in reports)
-              else "data_only", "series_reports": reports, "requirements": requirements,
+    result = {"status": "awaiting_gan_review" if message.get("stage") == "gan" else (
+              "planned" if message.get("plan") and any(r["status"] == "planned" for r in reports) else
+              "modeled" if any(r["status"] == "exploratory_model" for r in reports)
+              else "data_only"), "series_reports": reports, "requirements": requirements,
               "needs_gan": any(r.get("needs_gan") for r in reports),
               "series_limit_reached": len(grouped) > config.max_series,
               "runtime": _runtime(started), "candidate_evidence_only": True}

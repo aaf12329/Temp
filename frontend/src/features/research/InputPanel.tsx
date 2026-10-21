@@ -3,10 +3,10 @@ import { useRef, useState } from "react";
 import { MAX_FILE_BYTES, MAX_URLS, parseUrlList } from "@/lib/url-list";
 import type { ParsedUrls, ResearchInput } from "@/types/research";
 
-type Props = { onSubmit: (input: ResearchInput) => void; onExample: () => void };
+type Props = { onSubmit: (input: ResearchInput) => void; onExample: () => void; live?: boolean };
 
 /** 显示输入与可修正错误，提交有效的浏览器本地输入；由原型入口调用。 */
-export function InputPanel({ onSubmit, onExample }: Props) {
+export function InputPanel({ onSubmit, onExample, live = false }: Props) {
   const [fileName, setFileName] = useState("");
   const [parsed, setParsed] = useState<ParsedUrls>({ urls: [], rejected: [] });
   const [query, setQuery] = useState("");
@@ -44,7 +44,7 @@ export function InputPanel({ onSubmit, onExample }: Props) {
     }}>
       <label className="field" htmlFor="url-file">网址清单 TXT</label>
       <input id="url-file" type="file" accept=".txt,text/plain" aria-describedby="file-hint" onChange={(event) => void readFile(event.target.files?.[0])} />
-      <p id="file-hint" className="muted">每行一个网址，UTF-8 编码，最多 {MAX_URLS} 个。仅在浏览器读取，不上传。</p>
+      <p id="file-hint" className="muted">每行一个网址，UTF-8 编码，最多 {MAX_URLS} 个。{live ? "文件本身仅在浏览器读取；提交后把网址和需求交给本机服务。" : "仅在浏览器读取，不上传。"}</p>
       <button type="button" onClick={onExample}>下载示例 TXT</button>
       <p aria-live="polite">{reading ? "正在读取文件…" : fileName ? `${fileName}：${parsed.urls.length} 个有效网址（已去重）` : "尚未选择文件"}</p>
       {parsed.rejected.length > 0 && <details><summary>{parsed.rejected.length} 行无效，将忽略</summary>
@@ -54,7 +54,7 @@ export function InputPanel({ onSubmit, onExample }: Props) {
       <label className="field" htmlFor="research-query">你想研究什么？</label>
       <textarea id="research-query" rows={4} maxLength={4000} required placeholder="例如：整理贵阳餐饮业的收入、规模与发展变化" value={query} onChange={(event) => setQuery(event.target.value)} />
       {error && <p role="alert" className="error">{error}</p>}
-      <div className="actions"><button type="submit" disabled={reading || !parsed.urls.length || parsed.urls.length > MAX_URLS || !query.trim()}>确认并开始演示</button></div>
+      <div className="actions"><button type="submit" disabled={reading || !parsed.urls.length || parsed.urls.length > MAX_URLS || !query.trim()}>{live ? "确认并开始研究" : "确认并开始演示"}</button></div>
     </form>
   </section>;
 }

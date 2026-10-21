@@ -9,6 +9,7 @@ import hashlib
 
 from app.common.file_io import read_bytes
 from app.core.errors import ServiceError
+from app.pipeline_service import execute as execute_pipeline
 
 MAX_EVIDENCE_BYTES = 32 * 1024 * 1024
 
@@ -69,6 +70,8 @@ def execute_operation(runtime, claim) -> dict:
     """在后台执行有界任务，崩溃恢复不得重复未知模型调用；由操作 Worker 调用。"""
     if claim.attempts > 3:
         raise ServiceError("E_WORKER_LOST", "研究任务连续中断，请检查环境后使用新操作 ID。", 500)
+    if claim.kind == "pipeline":
+        return execute_pipeline(runtime, claim)
     if claim.kind == "advisor" and claim.attempts > 1:
         raise ServiceError("E_ADVISOR_OUTCOME_UNKNOWN", "建议执行曾中断，请核对会话后使用新操作 ID。", 409)
     records, evidence, files = select_materials(runtime, claim.project_id, claim.request["material_ids"])

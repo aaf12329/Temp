@@ -37,6 +37,9 @@ table { border-collapse: collapse; width: 100%; font-size: .9rem; }
 th, td { padding: 10px; border: 1px solid #ccc; text-align: left; }
 .table-scroll { overflow-x: auto; }
 .table-scroll table { min-width: 480px; }
+.workspace-nav { max-width: 960px; margin: 20px auto 0; padding: 0 20px; display: flex; gap: 12px; flex-wrap: wrap; }
+.workspace-nav button[aria-pressed="true"] { border: 2px solid #555; font-weight: 600; }
+.series-result { border-top: 1px solid #ccc; padding-top: 14px; margin-top: 20px; }
 .chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 24px 0; }
 .chart { margin: 18px 0; padding: 12px; border: 1px solid #ccc; background: #fff; min-width: 0; }
 .chart-grid .chart { margin: 0; }

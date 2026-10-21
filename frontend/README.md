@@ -1,104 +1,70 @@
-# 独立前端交互原型
+# 网页前端与设计预览
 
-项目目标很大，甚至可以说很宏大：把公开信息转化为有来源、有口径、可复核的产业判断。这里是给人类设计师使用的完整交互骨架，样式只保留基础布局，最终视觉设计交给人类。
+主项目已在代码层接通 React/Next.js → FastAPI → 持久Worker → Python研究管线。首页默认“实际研究”，顶部可切换“设计预览（合成演示）”。不做登录、注册或用户中心；两种模式的数据与状态分开。最终视觉设计由人类负责。
 
-Next.js 16.4.2 / React 19.3.1 / TypeScript 5.9.3。打开即用，不做登录、注册或用户中心。**未连接后端**；不采集、不训练、不调用 LLM，不需要 Python、CUDA、数据库或密钥。所有图与指标均为合成演示，刷新后清除状态。
+React/Next.js frontend with a local FastAPI/worker connection. The actual workflow and synthetic design preview are separate. Backend credentials stay in Node; only the final language assistant may use an external API.
 
-Standalone frontend prototype: nine in-memory views, no backend, login, model execution or API credentials. All charts, metrics and downloads are synthetic demo fixtures. Human designers own the visual design; AI startup guidance is in Agent.md.
+## 启动
 
-## 运行与切换
+完整平台：双击项目根目录“一键启动.bat”，默认网页 http://127.0.0.1:3000 ，API http://127.0.0.1:8000/docs 。脚本准备根Python环境及npm依赖，再监管API、Worker和Next。已有端口占用时不会接管其他服务。
 
-需要 Node.js 24+（含 npm）。在本目录打开终端：
-
-```powershell
-npm ci
-npm run dev
-```
-
-打开终端打印的 Local 地址，通常是 http://127.0.0.1:3000。保持终端运行，Ctrl+C 停止。端口占用时以实际输出为准，不结束其他程序。独立交接包提供“启动预览.bat”，双击即可检查环境、首次安装依赖并启动。
-
-顶部“页面预览与演示分支”默认展开，点击编号直接切换：
-
-| 编号 | 页面 | 主要内容 |
-| --- | --- | --- |
-| 1 | 输入 | 每行一个网址的TXT + 一句话需求 |
-| 2 | 处理过程 | 手动阶段、访问失败与跳过原因 |
-| 3 | 整理结果 | CSV预览、建模门槛、数据不足退路 |
-| 4 | 建模选择 | GAN可选、PyTorch/TensorFlow、生成倍数 |
-| 5 | GAN生成 | 训练、生成和筛选阶段的演示 |
-| 6 | t-SNE与确认 | 分布布局、质量失败示例、采用/不采用 |
-| 7 | XGBoost建模 | 手动进度、失败和重试 |
-| 8 | 模型评估 | 六种图、MAE/RMSE/R²、测试明细与下载 |
-| 9 | 分析与建议 | LLM占位、结果与限制、完整报告下载 |
-
-九个页面是同一个URL下的React视图，不是九个独立网站。直接预览会重置选项并使用预设演示状态；要看选项如何传递，请走页面下方的“继续”按钮。浏览器前进/后退不承担流程导航。
-
-## 完整演示路径
-
-先选择演示分支，再下载示例TXT、选取它并输入需求。TXT只在浏览器读取：最多1MB、100个去重有效HTTP(S)网址；支持BOM、注释、空行和错误行提示。
-
-```text
-ResearchInput { fileName, urls[N<=100], query }
-  → 本地读取/去重 → 手动演示采集/匹配/整理
-  ├─ 数据不足 → 整理CSV → 分析建议占位 → 报告
-  └─ 达到条件（预设40条合成记录，非实际判定）
-       → 建模选择
-       ├─ 不尝试GAN ──────────────────────┐
-       └─ WGAN框架 + 生成比 → 生成演示      │
-             → t-SNE布局 + 质量检查         │
-             ├─ 采用通过检查的数据 ─────────┤
-             └─ 不采用，或检查失败 ─────────┤
-                                           ↓
-                         XGBoost演示（可演示失败/重试）
-                           → 性能评估 → 分析建议 → 下载
-```
-
-生成比指“生成样本数 / 真实训练样本数”，只按训练集计算。可选0.5、1、2、5倍，预设5倍用于查看本轮讨论的方案；24条训练样本对应120条生成样本，不是总量扩大到5倍。验证/测试各8条不参与GAN。**这些是界面合同，不修改Python或实际训练JSON；也不表示24条数据足够训练可靠GAN。**
-
-质量失败时禁用采用按钮，仍能仅用真实数据建模。返回建模选择会清除GAN确认和旧结果。切换演示分支或刷新会清空本轮状态。
-
-## 图与下载的真实性边界
-
-- t-SNE位置使用固定二维布局点，未执行真实降维；SVG下载也标明布局示意。
-- 预测散点、时间对照、残差、方案比较来自同一组8条固定合成测试观测；指标在浏览器据此计算，CSV与JSON保持一致，不代表训练过模型。
-- 回测条形与SHAP条形是另外的布局占位，未执行回测或SHAP计算，不是前述测试指标的拆分。
-- 模型图类型参考 WGAN_Boost_Xgboost 的 S4/S11/S15 思路，未复制其材料领域数据、权重或随机划分流程： https://github.com/aaf12329/WGAN_Boost_Xgboost
-- 目前“预测CSV”是留出测试期的对照示例，没有生成真实未来预测，也没有校准预测区间。
-- 两行整理CSV是另一个最小导出示例，不冒充建模分支的40行记录。示例TXT使用example域名。
-- 所有导出由浏览器下载；不写后端output、不配置SQL，也不调用LLM。下载文件名与内容保留演示标记。
-
-## 结构与调用树
-
-```text
-Home → ResearchPrototype（显式聚合入口）
-       ├─ ResearchFlow/reduceFlow：事件 → FlowState快照
-       ├─ InputPanel → parseUrlList → ResearchInput
-       ├─ ProgressPanel / ResultPanel / ModelPanel：数据与回调
-       ├─ TrainingPanel：GAN和XGBoost共用进度结构
-       ├─ GanReviewPanel：点布局、质量状态、采用确认
-       ├─ EvaluationPanel → AnalysisChart / BarChart（共用SVG）
-       ├─ ReportPanel：文本与下载动作
-       └─ downloadText：统一浏览器Blob下载
-
-共用层：
-  src/types/research.ts        数据合同
-  src/lib/research-flow.ts     流程类与reducer
-  src/lib/demo-analysis.ts     合成观测、指标、生成计数、导出文本
-  src/lib/url-list.ts          TXT解析
-  src/lib/download.ts          下载I/O
-  src/components/AnalysisChart.tsx  图形
-演示输入与采集占位：src/features/research/demo.ts
-样式入口：src/app/globals.css
-```
-
-组件只收props/回调，不横向操作其他页面。将来总装应增加适配层，替换演示数据并保持真实训练、验证、测试隔离；当前不预先绑定后端合同。
-
-## 检查
+已有依赖可在根目录运行：
 
 ```powershell
-npm test
-npm run typecheck
-npm run build
+./.venv/Scripts/python.exe -m app.local_service --with-frontend
 ```
 
-8项合成合同检查覆盖TXT、门槛、GAN确认/失败、分支重置、训练失败恢复，以及CSV与指标一致性。类型检查和构建还需执行；实际本轮结果见交接包验收说明或主项目docs/前端后半流程验收记录.md。生成物node_modules、.next、next-env.d.ts和tsbuildinfo不需要分享。所有源码路径相对当前目录。
+单独改前端：需要Node.js 24+，在本目录执行npm ci、npm run dev。没有API/Worker时仍可切到设计预览；实际研究会明确报连接失败，不回退到假结果。停止用Ctrl+C。不为设计人员配置Python、CUDA或API key。
+
+## 实际流程
+
+```text
+TXT本地读取（最多1MB/100个去重HTTP(S)网址）+ 一句话需求
+ → Next同源接口 → FastAPI提交prepare操作 → Worker采集/整理/查门槛
+ ├─ 不足 → CSV + 原因 + 最终分析/状态报告
+ └─ 达到条件 → 用户选择
+      ├─ 不训练GAN → model操作 → XGBoost
+      └─ 选PyTorch/TensorFlow → gan操作
+           → 真实训练行数×5生成 → 实际t-SNE与数值检查
+           → 用户确认采用，或拒绝后仅用真实数据
+           → model操作 → XGBoost
+ → 真实测试指标/实际PNG/CSV → 最终LLM（可关闭）→ 报告
+```
+
+GAN还有独立的真实训练样本门槛，达到XGBoost门槛不意味着一定可以用GAN。生成数量只按真实训练集计算，验证/测试完全隔离。确认后读取同一批带哈希的生成文件，不重训GAN。采用后真实验证未改善时回退真实数据模型，页面会说明。
+
+实际任务由Worker执行，页面只轮询queued/running/done/failed，不显示虚假的训练百分比。切换设计预览保留本页状态；刷新后可用任务编号恢复查询。浏览器关闭不会取消后台任务。提交响应不明确时重试相同幂等ID，不重复提交另一项计算。
+
+实际图包括预测对照/残差/误差分布、时间趋势、原生重要性、模型对比、原生TreeSHAP及缺失图；有GAN才显示t-SNE和训练图。没有真实回测产物时不显示回测占位。R²不是可信度百分比，SHAP不证明因果。最终助手缺密钥或失败时仍有CSV与明确状态报告。
+
+## 服务端边界
+
+浏览器只调用 /api/platform 白名单接口。Node从根.env或自身环境读取服务token，转发到本机FastAPI；不使用NEXT_PUBLIC凭据，不把token交给浏览器。POST检查同源，转发目标仅本机。正式网页产物保存在每次领取的独立data/pipeline目录，经鉴权下载；CLI继续覆盖根output登记产物，不用SQL。
+
+## 设计组独立目录
+
+桌面“产业研究平台_前端设计交接”与同名ZIP是完整独立前端交互包，保持未接后端的设计快照。含源码、锁文件、启动预览.bat、Agent.md和预览图，不包含Python、环境、密钥或Node构建缓存。它直接打开九个演示视图，不依赖父目录。
+
+九个设计视图：1输入、2处理、3整理结果、4建模选择、5GAN生成、6t-SNE确认、7XGBoost、8模型评估、9分析建议。顶部编号直接预览会重置演示选项；要看选择传递用各页继续按钮。生成比当前固定5倍。演示t-SNE是固定点布局、性能来自8条合成观测、回测/SHAP是位置占位，均未运行模型或LLM。
+
+## 结构
+
+```text
+Home → ResearchWorkspace（模式聚合）
+       ├─ LiveResearch（实际业务聚合）
+       │   ├─ InputPanel → parseUrlList → ResearchInput
+       │   ├─ submitStage/queryOperation/artifactUrl → 同源Next接口
+       │   └─ LiveResults ← PipelineResult（实际产物）
+       └─ ResearchPrototype（独立设计聚合）
+           ├─ ResearchFlow/reduceFlow → FlowState
+           ├─ Input/Progress/Result/Model/Training/GanReview/Evaluation/Report
+           └─ 共用demo-analysis / AnalysisChart / downloadText
+
+Next Route Handler → server/platform-proxy → FastAPI
+src/types：前端与实际服务合同
+src/lib：纯逻辑、浏览器I/O与合成fixture
+src/server/paths.ts：服务端配置地址簿
+src/app/globals.css：结构样式
+```
+
+npm test、npm run typecheck、npm run build是后续检查命令。所有者已明确本阶段暂停测试，不继续运行；此前执行结果和最后未重新验收的范围见主项目docs/网页总装说明.md。node_modules、.next、next-env.d.ts与tsbuildinfo是生成物，不入库。

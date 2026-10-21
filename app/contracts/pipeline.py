@@ -60,6 +60,7 @@ class GAN(Strict):
     mode: Literal["auto", "off"] = "auto"
     min_real_samples: int = Field(default=64, ge=32, le=10000)
     n_generate: int = Field(default=2000, ge=1)
+    generation_multiplier: Literal[5] = 5
     generation_batch_size: int = Field(default=256, ge=1)
     precision: Literal["float32"] = "float32"
     tsne_max_points: int = Field(default=2000, ge=2)

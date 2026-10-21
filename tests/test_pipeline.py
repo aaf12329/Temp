@@ -288,7 +288,10 @@ def test_rejected_gan_keeps_real_baseline_and_real_holdouts(tmp_path, legacy_imp
         return None, {"status": "rejected", "reason": "synthetic test: quality rejected"}
 
     monkeypatch.setattr(training, "augment", reject)
-    result = training.train_series(rows, config, PipelinePaths(tmp_path / "m"), "2020-01-01")
+    paths = PipelinePaths(tmp_path / "m")
+    review = training.train_series(rows, config, paths, "2020-01-01", stage="gan")
+    assert review["status"] == "gan_review"
+    result = training.train_series(rows, config, paths, "2020-01-01", use_generated=False)
     assert seen
     assert result["gan"]["status"] == "rejected"
     assert result["selected_model"] == "real_only"
@@ -317,11 +320,13 @@ def test_real_cpu_wgan_two_backends(tmp_path, legacy_imports, backend):
     paths = PipelinePaths(tmp_path / backend)
     generated, report = augment(frame, config.gan, paths, 2)
     assert report["status"] in {"accepted", "rejected"}, report
-    assert report["synthetic_rows"] == 64
+    assert report["synthetic_rows"] == 320
+    assert report["requested_synthetic_rows"] == 64 * 5
     assert (paths.gan_directory() / "model.npz").is_file()
     assert paths.file("gan_plot").is_file()
     assert paths.file("tsne").read_bytes().startswith(b"\x89PNG")
     tsne = read_json(paths.file("tsne_meta"))
-    assert tsne["plotted_real"] == tsne["plotted_synthetic"] == 64
+    assert tsne["plotted_real"] == 64
+    assert tsne["plotted_synthetic"] == 320
     assert tsne["fit_scope"] == "real_training_only"
     assert "is_synthetic" in paths.file("generated").read_text("utf-8-sig").splitlines()[0]

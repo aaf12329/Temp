@@ -18,6 +18,7 @@ DEPENDENCY_LOCK = PROJECT_ROOT / "requirements.lock.txt"
 OPENAPI_FILE = PROJECT_ROOT / "docs/openapi.json"
 ENVIRONMENT_CHECK = PROJECT_ROOT / "work/environment-check.json"
 SERVICE_CHECK = PROJECT_ROOT / "work/service-check.json"
+PIPELINE_SERVICE_CHECK = PROJECT_ROOT / "work/pipeline-service-check.json"
 ACCEPTANCE_DIRECTORY = PROJECT_ROOT / "work"
 CRAWLER_COMPONENT = PROJECT_ROOT / "components/crawler"
 CRAWLER_SOURCE = CRAWLER_COMPONENT / "src"
@@ -29,6 +30,9 @@ CLI_CHECK_ROOT = PROJECT_ROOT / "work/cli-check"
 LOCAL_SERVICE_LOCK = PROJECT_ROOT / "work/quick-deploy/service.lock"
 LOCAL_API_LOG = PROJECT_ROOT / "work/quick-deploy/api.log"
 LOCAL_WORKER_LOG = PROJECT_ROOT / "work/quick-deploy/worker.log"
+LOCAL_FRONTEND_LOG = PROJECT_ROOT / "work/quick-deploy/frontend.log"
+FRONTEND_DIRECTORY = PROJECT_ROOT / "frontend"
+NEXT_EXECUTABLE = FRONTEND_DIRECTORY / "node_modules/next/dist/bin/next"
 RESEARCH_TEMPLATE = CRAWLER_COMPONENT / "config/research.json"
 CRAWLER_BRIDGE = PROJECT_ROOT / "app/crawler/bridge.py"
 ADVISOR_COMPONENT = PROJECT_ROOT / "产业研究建议助手"
@@ -86,6 +90,8 @@ class PipelinePaths:
             "information": "information.csv",
             "forecast": "forecast.csv",
             "tsne": "gan_tsne.png", "tsne_points": "gan_tsne.csv", "tsne_meta": "gan_tsne.json",
+            "gan_review": "gan_review.json", "evidence": "evidence.json",
+            "comparison": "comparison.png", "shap": "shap.png",
         }
         return self.root / names[name]
 
@@ -104,7 +110,7 @@ class PipelinePaths:
                  "test", "generated", "quality", "model", "predictions", "evaluation",
                  "importance", "trend", "missing_plot", "gan_plot", "runtime", "materials",
                  "passages", "analysis", "manifest", "status", "information", "forecast",
-                 "tsne", "tsne_points", "tsne_meta"]
+                 "tsne", "tsne_points", "tsne_meta", "gan_review", "evidence", "comparison", "shap"]
         vendor = ["model.npz", "model.json", "normalizer.json", "training_history.csv",
                   "generated_data.csv", "generated_encoded.csv", "training_data.csv",
                   "processing_report.json", "training_losses.png", "tsne.png", "run_status.json"]

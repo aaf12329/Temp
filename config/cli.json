@@ -14,6 +14,7 @@
     "backend": "pytorch",
     "mode": "auto",
     "min_real_samples": 64,
+    "generation_multiplier": 5,
     "config_file": "config/wgan.json",
     "timeout_s": null
   },

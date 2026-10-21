@@ -1,6 +1,6 @@
 # 快速部署与一键启动
 
-在 Windows 双击项目根目录的 `一键启动.bat`。首次自动配置环境并启动 **FastAPI + 数据库队列 Worker**；以后依赖未变时复用环境。当前已存在独立 frontend 原型，npm 自动识别并安装其锁定依赖；页面预览单独运行，不随此入口启动或连接后端。
+在 Windows 双击项目根目录的 `一键启动.bat`。首次自动配置环境并启动 **FastAPI + 数据库队列 Worker + Next.js前端**；以后依赖未变时复用环境。npm识别并安装锁定依赖，当前标准前端位于frontend。网页“实际研究”已接本机服务；“设计预览”保留独立演示。
 
 现在首先展示本机 CPU、内存、显卡、NVIDIA 显存和驱动，然后让用户选择 **CPU / NVIDIA GPU / 按硬件自动选择**。高级选项提供 TensorFlow CPU、保留现有框架、暂不安装 GAN。成功读取驱动只代表候选 GPU 可用，实际安装 CUDA 版后还会执行一次小型 CUDA 运算；失败就停止并给出检查驱动或改选 CPU 的提示。Intel/AMD 显卡没有接入对应加速后端，不放进 GPU 菜单。
 
@@ -26,12 +26,15 @@
    ├─ Install-Frontend：找到 package.json 才安装 npm 依赖
    └─ python -m app.local_service
       ├─ Uvicorn：127.0.0.1:8000
-      └─ Worker：共用所选 Python、根 .env 与数据库
+      ├─ Worker：共用所选 Python、根 .env 与数据库
+      └─ Next.js：127.0.0.1:3000，同源转发API，密钥不进入浏览器
 ```
 
 输入 JSON 是一个对象；依赖输入是根 requirement.txt/锁文件、Python 项目描述和可选 package-lock.json。输出为根 `.venv`（或明确指定的环境）、前端目录的 node_modules、`work/quick-deploy` 的依赖哈希及运行日志。哈希只控制是否重装，不保存解释器绝对地址；移动目录、切换解释器、修改依赖或安装脚本会重新检查安装。
 
-启动后打开 `http://127.0.0.1:8000/docs`。入口会等待 API 就绪，并检查 API/Worker 异常退出；按 **Ctrl+C** 正常退出并回收两组子进程。不要通过任务管理器强制结束启动器。日志为 `work/quick-deploy/api.log`、`worker.log`，每次启动覆盖。已经有独立 API/Worker 在运行时先关闭它们，避免重复运行；端口占用会报错。
+启动后打开 `http://127.0.0.1:3000/`；API文档仍在 `http://127.0.0.1:8000/docs`。入口等待API及网页就绪并监管三个进程；按 **Ctrl+C** 回收自己创建的进程。日志在 `work/quick-deploy/api.log`、`worker.log`、`frontend.log`，每次启动覆盖。已有3000/8000服务时先正常关闭；入口不会接管或结束其他服务。
+
+已有依赖时可直接运行 `python -m app.local_service --with-frontend`；自定义端口用 `--port 8001 --frontend-port 3001`。不加with-frontend仍是后端入口，便于单独调试。自动总装针对本仓库标准frontend目录；其他frontend_dir仅用于依赖识别，不能据此宣称任意项目可集成。
 
 首次安装失败会停止并显示原因，下一次可重试，不把失败写成安装成功。依赖未变时仍检查 pip 依赖完整性、初始化配置并执行迁移。需要重新修复安装时加 `-Reinstall`。
 

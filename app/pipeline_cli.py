@@ -168,7 +168,9 @@ def _summary(analysis, modeling):
         reports.append({key: item[key] for key in ("scope", "status", "requirements", "test",
                        "forecast", "selected_model", "evidence_status", "directory") if key in item})
         if item.get("gan"):
-            reports[-1]["gan"] = {key: item["gan"][key] for key in ("status", "synthetic_rows")
+            reports[-1]["gan"] = {key: item["gan"][key] for key in ("status", "synthetic_rows",
+                                   "requested_synthetic_rows", "user_accepted", "used_for_final_model",
+                                   "validation_improved", "reason")
                                    if key in item["gan"]}
     summary = {"counts": analysis["counts"], "truncated": analysis.get("truncated"),
             "status": modeling["status"], "requirements": modeling.get("requirements", []),
@@ -229,9 +231,17 @@ def summarize(question, analysis, modeling, evidence, config, settings, paths, *
         lines.extend([f"## {item['scope']}", "", f"状态：{item['status']}", ""])
         lines.extend(f"- {reason}" for reason in item.get("requirements", []))
         if item.get("test"):
-            lines.extend(["", f"真实测试指标：{item['test']}", "",
-                          f"探索性预测：{item.get('forecast')}", "",
-                          f"模型、预测 CSV 与性能图：{item['directory']}", ""])
+            lines.extend(["", "|真实测试方案|MAE|RMSE|R²|样本数|", "|---|---|---|---|---|"])
+            for label, key in [("所选模型", "selected"), ("仅真实数据XGBoost", "real_only"), ("沿用上期值", "naive")]:
+                values = item["test"].get(key)
+                if values:
+                    r2 = "不适用" if values.get("r2") is None else f"{values['r2']:.3f}"
+                    lines.append(f"|{label}|{values['mae']:.3f}|{values['rmse']:.3f}|{r2}|{values['n']}|")
+            if not item["test"]["beats_naive"]:
+                lines.extend(["", "真实测试未优于沿用上期值，暂不建议依赖该模型作预测判断。"])
+            if item.get("forecast"):
+                lines.extend(["", f"探索性预测：{item['forecast']['target_period']}年，{item['forecast']['prediction']:.3f}；不是来源事实。"])
+            lines.extend(["", f"模型、预测 CSV 与性能图：{item['directory']}", ""])
     lines.extend(modeling.get("requirements", []))
     lines.extend(["", "## 分析与建议", "", content or (
         "本轮未取得 LLM 分析，不将本地状态说明冒充模型总结。" + str(api.get("reason", "")))])
@@ -244,15 +254,34 @@ def summarize(question, analysis, modeling, evidence, config, settings, paths, *
 
 def choose_gan(config, input_fn):
     """只有需要增强时由 run 调用；接收框架简写，其余参数完整保留在 JSON。"""
-    choice = input_fn("[WGAN] 建议尝试训练集增强。选择 1=PyTorch、2=TensorFlow(tf)、"
-                      "0=跳过 [默认1]：").strip().lower()
+    choice = input_fn("[WGAN] 真实数据通过门槛。生成量=真实训练集×5。选择 1=PyTorch、2=TensorFlow(tf)、"
+                      "0=不训练GAN [默认0]：").strip().lower()
     while choice not in {"", "1", "2", "0", "pytorch", "tensorflow", "tf"}:
         choice = input_fn("请输入 1、2 或 0：").strip().lower()
-    if choice == "0":
+    if choice in {"", "0"}:
         config.gan.mode = "off"
     else:
         config.gan.backend = "tensorflow" if choice in {"2", "tf", "tensorflow"} else "pytorch"
     print(f"[WGAN配置] {config.gan.model_dump(mode='json')}", flush=True)
+
+
+def accept_gan(modeling, paths, input_fn):
+    """生成后打印实际t-SNE和质量结果，再要求明确采用；默认拒绝，不重新训练。"""
+    available = False
+    for report in modeling.get("series_reports", []):
+        gan = report.get("gan", {})
+        print(f"[GAN审查] {report['scope']}：{gan.get('status')}；{gan.get('synthetic_rows', 0)}条", flush=True)
+        if gan.get("tsne", {}).get("status") == "completed":
+            print(f"[t-SNE图片] {report['directory']}/gan_tsne.png（位于本轮output下）", flush=True)
+        available = available or gan.get("status") == "accepted"
+    if not available:
+        print("[GAN] 没有通过初步检查的数据；仅用真实数据继续", flush=True)
+        return False
+    print("[提示] 查看t-SNE及quality.json；点云重叠不证明数据可靠。", flush=True)
+    choice = input_fn("是否采用通过检查的GAN数据进入XGBoost？1=采用，0=仅真实数据 [默认0]：").strip()
+    while choice not in {"", "0", "1"}:
+        choice = input_fn("请输入1或0：").strip()
+    return choice == "1"
 
 
 def run(url_file, question, config, settings, *, paths=None, adapter=None, advisor=None,
@@ -292,11 +321,18 @@ def run(url_file, question, config, settings, *, paths=None, adapter=None, advis
         except ServiceError as exc:
             modeling = {"status": "data_only", "series_reports": [], "needs_gan": False,
                         "requirements": [f"{exc.error.code}: {exc.error.message}"]}
+        use_generated = False
         if modeling["needs_gan"]:
             choose_gan(config, input_fn)
             write_json(paths.file("config"), config.model_dump(mode="json"))
+            if config.gan.mode != "off":
+                try:
+                    review = _offline("cli-model", {**payload, "stage": "gan"}, settings, workspace, config)
+                    use_generated = accept_gan(review, paths, input_fn)
+                except ServiceError as exc:
+                    print(f"[GAN未完成] {exc.error.message}；仅使用真实数据继续", flush=True)
         try:
-            modeling = _offline("cli-model", payload, settings, workspace, config)
+            modeling = _offline("cli-model", {**payload, "use_generated": use_generated}, settings, workspace, config)
         except ServiceError as exc:
             modeling = {"status": "data_only", "series_reports": [],
                         "requirements": [f"{exc.error.code}: {exc.error.message}"]}

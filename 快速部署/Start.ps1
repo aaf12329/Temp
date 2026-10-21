@@ -1,7 +1,7 @@
 ﻿<#
 结构：展示硬件 → 读取配置/选择后端 → Resolve-Python → 安装依赖 → 本地服务入口。
 调用：根一键启动.bat → 本脚本 → scripts/Setup.ps1 / npm / app.local_service。
-数据流：本地 JSON 与依赖指纹 → 单个 Python 环境、npm 依赖、API + Worker。
+数据流：本地JSON与依赖指纹 → 单个Python环境、npm依赖、API + Worker + 标准Next前端。
 路径集中在开头；用户的 Conda 解释器必须明确指定，不随 PATH 悄悄切换环境。
 #>
 param(
@@ -30,6 +30,7 @@ $DeployPaths = @{
     Setup = Join-Path $ProjectRootPath 'scripts\Setup.ps1'
     Init = Join-Path $ProjectRootPath 'scripts\init_config.py'
     Hardware = Join-Path $PSScriptRoot 'Hardware.ps1'
+    PlatformFrontend = Join-Path $ProjectRootPath 'frontend'
     FingerprintInputs = @('requirement.txt', 'requirements.lock.txt', 'pyproject.toml',
         '产业研究建议助手/pyproject.toml', 'scripts/Setup.ps1', '快速部署/Start.ps1', '快速部署/Hardware.ps1',
         'requirements/gan-pytorch.txt', 'requirements/gan-pytorch-cuda.txt',
@@ -255,8 +256,12 @@ try {
         else { Write-Host 'npm installation disabled by local config.' }
     } finally { $setupLock.Dispose() }
     if ($SetupOnly) { Write-Host 'Environment setup completed.'; exit 0 }
-    Write-Host 'Starting backend. Keep this window open; press Ctrl+C to stop API and Worker.'
-    Invoke-Checked $python @('-m', 'app.local_service', '--port', [string]$settings.port)
+    Write-Host 'Starting platform. Keep this window open; press Ctrl+C to stop services.'
+    $serviceArguments = @('-m', 'app.local_service', '--port', [string]$settings.port)
+    if ($frontend -and [IO.Path]::GetFullPath($frontend) -eq [IO.Path]::GetFullPath($DeployPaths.PlatformFrontend)) {
+        $serviceArguments += '--with-frontend'
+    }
+    Invoke-Checked $python $serviceArguments
     exit 0
 } catch {
     Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red

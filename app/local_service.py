@@ -1,4 +1,4 @@
-"""本地 API/Worker 的显式启动聚合入口，不提交采集或付费任务。
+"""本地 API/Worker/可选前端的显式启动聚合入口，不提交采集或付费任务。
 
 结构：main → serve → check_port / wait_ready / stop_processes。
 调用：快速部署/Start.ps1 → 同一解释器的 Uvicorn 与数据库队列 Worker。
@@ -7,6 +7,8 @@
 """
 
 import argparse
+import os
+import shutil
 import signal
 import socket
 import subprocess
@@ -20,7 +22,15 @@ from urllib.request import ProxyHandler, build_opener
 import psutil
 from filelock import FileLock, Timeout
 
-from app.common.paths import LOCAL_API_LOG, LOCAL_SERVICE_LOCK, LOCAL_WORKER_LOG, PROJECT_ROOT
+from app.common.paths import (
+    FRONTEND_DIRECTORY,
+    LOCAL_API_LOG,
+    LOCAL_FRONTEND_LOG,
+    LOCAL_SERVICE_LOCK,
+    LOCAL_WORKER_LOG,
+    NEXT_EXECUTABLE,
+    PROJECT_ROOT,
+)
 from app.core.config import Settings
 
 
@@ -59,8 +69,8 @@ def stop_processes(processes: list[subprocess.Popen]) -> None:
 
 
 def check_children(processes: list[subprocess.Popen]) -> None:
-    """发现 API 或 Worker 异常退出就中止整组；由就绪和运行循环调用。"""
-    for name, process in zip(("API", "Worker"), processes, strict=True):
+    """发现API、Worker或所选前端退出就中止整组；由就绪和运行循环调用。"""
+    for name, process in zip(("API", "Worker", "Frontend")[:len(processes)], processes, strict=True):
         if process.poll() is not None:
             raise RuntimeError(f"{name} 已退出（{process.returncode}），请查看 work/quick-deploy 日志。")
 
@@ -81,11 +91,15 @@ def wait_ready(port: int, processes: list[subprocess.Popen], timeout: float = 30
     raise RuntimeError("API 未在 30 秒内就绪，请查看 work/quick-deploy/api.log。")
 
 
-def serve(port: int, stop_event: Event | None = None) -> None:
-    """启动并监管两进程，退出时回收；由命令入口或隔离验收调用。"""
+def serve(port: int, stop_event: Event | None = None, *, frontend_port: int | None = None) -> None:
+    """监管API/Worker及可选Next进程，退出时回收；由部署入口调用。"""
     if Settings().task_backend != "database":
         raise RuntimeError("此入口用于本机 database 队列；Celery 模式请使用 compose.yaml。")
     check_port(port)
+    if frontend_port is not None:
+        check_port(frontend_port)
+        if not shutil.which("node") or not NEXT_EXECUTABLE.is_file():
+            raise RuntimeError("前端依赖未准备，请先在frontend运行npm ci。")
     LOCAL_SERVICE_LOCK.parent.mkdir(parents=True, exist_ok=True)
     hidden = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
     processes = []
@@ -100,6 +114,27 @@ def serve(port: int, stop_event: Event | None = None) -> None:
                 processes.append(subprocess.Popen([sys.executable, *command], cwd=PROJECT_ROOT,
                                  stdout=output, stderr=subprocess.STDOUT, **hidden))
             wait_ready(port, processes)
+            if frontend_port is not None:
+                output = stack.enter_context(LOCAL_FRONTEND_LOG.open("w", encoding="utf-8"))
+                environment = {**os.environ, "INDUSTRY_API_URL": f"http://127.0.0.1:{port}"}
+                processes.append(subprocess.Popen([shutil.which("node"), str(NEXT_EXECUTABLE), "dev",
+                    "--hostname", "127.0.0.1", "--port", str(frontend_port)], cwd=FRONTEND_DIRECTORY,
+                    stdout=output, stderr=subprocess.STDOUT, env=environment, **hidden))
+                opener = build_opener(ProxyHandler({}))
+                deadline = time.monotonic() + 45
+                while True:
+                    if time.monotonic() > deadline:
+                        raise RuntimeError("前端未就绪，请查看frontend.log。")
+                    check_children(processes)
+                    try:
+                        with opener.open(f"http://127.0.0.1:{frontend_port}/", timeout=2) as response:
+                            if response.status == 200:
+                                break
+                    except (URLError, TimeoutError):
+                        if time.monotonic() > deadline:
+                            raise RuntimeError("前端未就绪，请查看frontend.log。") from None
+                        time.sleep(0.3)
+                print(f"网页已就绪：http://127.0.0.1:{frontend_port}/", flush=True)
             print(f"后端已就绪：http://127.0.0.1:{port}/docs", flush=True)
             print("API 与 Worker 已启动；日志：work/quick-deploy/。按 Ctrl+C 停止。", flush=True)
             while stop_event is None or not stop_event.is_set():
@@ -118,14 +153,18 @@ def main() -> int:
     """校验端口并注册退出处理；由快速部署脚本调用。"""
     parser = argparse.ArgumentParser(description="启动本地 API 与 Worker")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--with-frontend", action="store_true")
+    parser.add_argument("--frontend-port", type=int, default=3000)
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("端口应为 1～65535。")
+    if args.with_frontend and (not 1 <= args.frontend_port <= 65535 or args.frontend_port == args.port):
+        parser.error("前端端口应为1～65535且不能与API相同。")
     signal.signal(signal.SIGTERM, interrupt)
     try:
-        serve(args.port)
+        serve(args.port, frontend_port=args.frontend_port if args.with_frontend else None)
     except KeyboardInterrupt:
-        print("API 与 Worker 已停止。", flush=True)
+        print("本入口启动的平台服务已停止。", flush=True)
     except Timeout:
         print("另一组本地服务正在运行，请先关闭它。", file=sys.stderr)
         return 1
