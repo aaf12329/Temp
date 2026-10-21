@@ -6,13 +6,10 @@
 """
 
 
-import hashlib
-from copy import deepcopy
-
 from app.common.component import run_component
-from app.common.file_io import read_bytes, write_bytes, write_json
+from app.common.evidence_files import stage_records
+from app.common.file_io import write_json
 from app.common.paths import DataPaths
-from app.core.errors import ServiceError
 
 
 class IntegratedResearch:
@@ -25,29 +22,13 @@ class IntegratedResearch:
     def execute(self, request: dict, records: list[dict], files: list[tuple], run_id: str) -> dict:
         """执行一次离线分析并返回稳定结果；由操作 Worker 调用。"""
         workspace = self.paths.research_workspace(run_id)
-        mapped = {}
-        for reference, source in files:
-            category = "para" if source.suffix == ".jsonl" else "text"
-            new_reference = self.paths.research_input_reference(category,
-                hashlib.sha256(reference.encode()).hexdigest()[:24], source.suffix)
-            mapped[reference] = new_reference
-            target = DataPaths(workspace / "data").normalized_reference(new_reference)
-            if not target.is_relative_to((workspace / "data/normalized").resolve()):
-                raise ServiceError("E_RESEARCH_PATH", "研究输入路径越界。", 500)
-            write_bytes(target, read_bytes(source))
-        records = deepcopy(records)
-        for record in records:
-            storage = record["storage"]
-            storage["text_path"] = mapped.get(storage.get("text_path"))
-            record["paragraph_file"] = mapped.get(record.get("paragraph_file"))
-            if record.get("pdf"):
-                record["pdf"]["text_path"] = mapped[record["pdf"]["text_path"]]
+        records, references = stage_records(records, files, workspace)
         config_file = self.paths.bridge_file(workspace, "config")
         write_json(config_file, request["config"])
         output = self.paths.operation_directory(run_id)
         result = run_component({"action": "analyze", "request": {
             "records": records, "mode": request["mode"], "config_path": str(config_file),
-            "output_dir": str(output), "reference_map": {value: key for key, value in mapped.items()}}},
+            "output_dir": str(output), "reference_map": references}},
             workspace, self.settings.data_dir,
             self.settings.bridge_timeout_s)
         return {"counts": result["counts"], "trend_status": result["trend_status"],

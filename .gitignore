@@ -18,6 +18,7 @@ dist/
 build/
 node_modules/
 data_demo/
+output/
 *.db
 *.db-shm
 *.db-wal

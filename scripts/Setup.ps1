@@ -1,4 +1,4 @@
-﻿param([string]$PythonPath = '')
+﻿param([string]$PythonPath = '', [ValidateSet('pytorch', 'tensorflow', 'none')][string]$GANBackend = 'pytorch')
 $ErrorActionPreference = 'Stop'
 $env:PYTHONUTF8 = '1'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
@@ -22,6 +22,10 @@ if (Test-Path -LiteralPath (Join-Path $ProjectRootPath 'requirements.lock.txt'))
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $PythonExecutablePath -m pip install --no-deps -e (Join-Path $ProjectRootPath '产业研究建议助手')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if ($GANBackend -ne 'none') {
+    & $PythonExecutablePath -m pip install -r (Join-Path $ProjectRootPath "requirements/gan-$GANBackend.txt")
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 & $PythonExecutablePath -m pip check
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $PythonExecutablePath scripts\init_config.py

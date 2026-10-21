@@ -11,12 +11,23 @@ from pathlib import Path
 
 from app.common.file_io import write_json
 from app.common.network import GuardedTransport, guarded_dns
-from app.common.paths import CRAWLER_SOURCE
+from app.common.paths import CRAWLER_SOURCE, WGAN_SOURCE
 
 
 def execute(message: dict) -> dict:
     """装配组件运行边界；由 main 或离线桥接测试调用。"""
     sys.path.insert(0, str(CRAWLER_SOURCE))
+    if message["action"] in {"cli-analyze", "cli-model"}:
+        sys.path.insert(0, str(WGAN_SOURCE))
+        from app.pipeline.workflow import analyze, model
+
+        action = analyze if message["action"] == "cli-analyze" else model
+        try:
+            return {"data": action(message), "error": None}
+        except (ValueError, ImportError) as exc:
+            # 本分支只运行本地模型，载荷没有 API 凭据。
+            return {"data": None, "error": {"code": "E_CLI_DATA",
+                    "message": str(exc), "retryable": False}}
     if message["action"] == "model-setup":
         from research.assets import prepare_model
 

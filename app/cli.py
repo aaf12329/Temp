@@ -40,7 +40,20 @@ def main():
     sub.add_parser("export", help="从数据库重建 pages.json 材料快照")
     sub.add_parser("openapi", help="输出接口描述，供后续 TypeScript 接入")
     sub.add_parser("model-setup", help="显式准备固定版本 CPU 向量模型，不调用付费模型")
+    research = sub.add_parser("research", help="无需数据库的交互式 CLI：网址文件 + 一句需求")
+    research.add_argument("--config", default="config/cli.json")
+    research.add_argument("--urls-file")
+    research.add_argument("--query")
     args = parser.parse_args()
+    if args.action == "research":
+        from app.pipeline_cli import main as research_main
+
+        arguments = ["--config", args.config]
+        for name, value in [("--urls-file", args.urls_file), ("--query", args.query)]:
+            if value:
+                arguments.extend([name, value])
+        research_main(arguments)
+        return
     settings = Settings()
     if args.action == "openapi":
         from app.main import create_app

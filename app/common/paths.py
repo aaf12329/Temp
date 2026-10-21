@@ -21,6 +21,11 @@ SERVICE_CHECK = PROJECT_ROOT / "work/service-check.json"
 ACCEPTANCE_DIRECTORY = PROJECT_ROOT / "work"
 CRAWLER_COMPONENT = PROJECT_ROOT / "components/crawler"
 CRAWLER_SOURCE = CRAWLER_COMPONENT / "src"
+WGAN_SOURCE = PROJECT_ROOT / "components/wgan_trainer"
+CLI_CONFIG = PROJECT_ROOT / "config/cli.json"
+OUTPUT_ROOT = PROJECT_ROOT / "output"
+CLI_LOCK = PROJECT_ROOT / "work/cli.lock"
+CLI_CHECK_ROOT = PROJECT_ROOT / "work/cli-check"
 RESEARCH_TEMPLATE = CRAWLER_COMPONENT / "config/research.json"
 CRAWLER_BRIDGE = PROJECT_ROOT / "app/crawler/bridge.py"
 ADVISOR_COMPONENT = PROJECT_ROOT / "产业研究建议助手"
@@ -28,11 +33,92 @@ DATA_DIRECTORY_NAME = "data"
 DATABASE_FILENAME = "platform.db"
 
 
+def project_input(reference: str) -> Path:
+    """解析 CLI 的项目相对输入，拒绝环境、凭据目录和越界链接。"""
+    candidate = Path(reference)
+    if candidate.is_absolute() or candidate.drive or ".." in candidate.parts:
+        raise ValueError("请输入相对项目根目录的路径，不能使用 .. 或绝对路径。")
+    if any(part.startswith(".env") or part in {".git", ".venv"} for part in candidate.parts):
+        raise ValueError("配置与训练输入不能来自凭据、Git 或虚拟环境目录。")
+    target = (PROJECT_ROOT / candidate).resolve()
+    if not target.is_relative_to(PROJECT_ROOT):
+        raise ValueError("输入路径越过项目边界。")
+    return target
+
+
+def url_list_input(reference: str) -> Path:
+    """用户明确提供的网址 TXT 可位于项目外；只允许文本清单，不接受凭据文件。"""
+    path = Path(reference.strip().strip('"'))
+    path = (PROJECT_ROOT / path).resolve()
+    if path.suffix.lower() not in {".txt", ".list"} or path.name.startswith(".env"):
+        raise ValueError("网址清单应为 .txt 或 .list 文件，每行一个 http(s) 网址。")
+    return path
+
+
+@dataclass(frozen=True)
+class PipelinePaths:
+    """CLI 管线地址簿；聚合入口注入每轮独立目录，不接受网页指定的路径。"""
+
+    root: Path
+
+    def series_parent(self) -> Path:
+        """集中登记多序列产物父目录。"""
+        return self.root / "series"
+
+    def file(self, name: str) -> Path:
+        """返回登记的 CSV、报告、模型或图表位置；由离线管线调用。"""
+        names = {
+            "config": "config.json", "result": "result.json", "report": "report.md",
+            "llm": "llm.json", "access": "access.json", "raw": "raw.csv",
+            "candidates": "candidates.csv", "cleaned": "cleaned.csv",
+            "rejected": "rejected.csv", "missing": "missing.json", "cleaning": "cleaning.json",
+            "reviewed": "reviewed.json", "series": "series.csv", "train": "train.csv",
+            "validation": "validation.csv", "test": "test.csv", "generated": "generated.csv",
+            "quality": "quality.json", "model": "xgboost.json", "predictions": "predictions.csv",
+            "evaluation": "evaluation.png", "importance": "importance.png",
+            "trend": "trend.png", "missing_plot": "missing.png", "gan_plot": "gan.png",
+            "runtime": "runtime.json", "run_lock": "run.lock",
+            "materials": "materials.json", "passages": "passages.csv", "analysis": "analysis.json",
+            "manifest": "manifest.json", "status": "status.json",
+            "information": "information.csv",
+            "forecast": "forecast.csv",
+        }
+        return self.root / names[name]
+
+    def series(self, digest: str) -> "PipelinePaths":
+        """短哈希隔离不同口径，避免中文名称和 Windows 长路径。"""
+        return PipelinePaths(self.series_parent() / digest)
+
+    def gan_directory(self) -> Path:
+        """WGAN 原算法产物目录；文件名由内嵌组件自己的地址簿登记。"""
+        return self.root / "gan"
+
+    def registered_files(self) -> list[Path]:
+        """登记 CLI 可覆盖的文件集合，包含内嵌训练器固定产物，不使用用户清单删除。"""
+        names = ["config", "result", "report", "llm", "access", "raw", "candidates", "cleaned",
+                 "rejected", "missing", "cleaning", "reviewed", "series", "train", "validation",
+                 "test", "generated", "quality", "model", "predictions", "evaluation",
+                 "importance", "trend", "missing_plot", "gan_plot", "runtime", "materials",
+                 "passages", "analysis", "manifest", "status", "information", "forecast"]
+        vendor = ["model.npz", "model.json", "normalizer.json", "training_history.csv",
+                  "generated_data.csv", "generated_encoded.csv", "training_data.csv",
+                  "processing_report.json", "training_losses.png", "tsne.png", "run_status.json"]
+        return [self.file(name) for name in names] + [self.gan_directory() / name for name in vendor]
+
+
 @dataclass(frozen=True)
 class DataPaths:
     """登记采集服务数据位置；由 Storage 创建并提供给服务读取。"""
 
     root: Path
+
+    def pipeline(self, run_id: str) -> PipelinePaths:
+        """每轮 CLI 采集/清洗/训练结果的独立目录。"""
+        return PipelinePaths(self.root / "pipeline" / run_id)
+
+    def heavy_lock(self) -> Path:
+        """单机重计算互斥锁，避免同时运行两组训练。"""
+        return self.root / "workspaces/heavy.lock"
 
     def crawler_workspace(self, token: str) -> Path:
         """返回隔离采集工作区；由集成适配器调用。"""

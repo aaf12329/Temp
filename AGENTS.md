@@ -15,3 +15,7 @@ Windows 使用数据库持久队列；Linux 容器入口为 Celery + Redis + Pos
 .env 只留本地，禁止输出凭据。自动化测试使用临时数据、假 HTTP 与假模型；本地 ONNX/XGBoost 验收只用合成输入。真实模型调用须有当次授权。记忆、历史、摘要继续采用 JSON 键值对；正式/演示数据按项目分别隔离。
 
 当前仍为单可信调用方 Bearer 鉴权，project_id 只校验材料归属，不等于用户授权。前端、多用户登录和用户项目权限未实施。服务只开放静态 HTML 与文本 PDF；浏览器/TLS 档未适配服务网络闸门，不能绕过。
+
+2026-10-21 CLI 范围更新：pipeline_cli、pipeline/workflow、pipeline/training、pipeline/gan 为显式聚合层。CLI 不构造 runtime、不使用 SQL；输入为用户指定的每行网址 TXT 与终端一句需求。用户提供的单页路径视作本轮来源声明，已有 site_policy 人工禁令优先，robots、登录和网络限制继续强制执行。CLI 自动年度建模保持 machine_candidate_unreviewed，仅作探索；服务原有研究仍默认要求人工批准。output 只覆盖地址簿登记的上轮产物，不递归删除用户文件。
+
+只有最终助手可调用 API；其余模型在 CPU 子进程运行，不接收 API 凭据。默认 PyTorch CPU，可选 TensorFlow CPU，均安装于同一个根 .venv。GAN 参数在 config/cli.json，真实训练集分割在 GAN/训练异常模型之前，验证和测试不包含合成数据。原始独立 WGAN_Trainer/WGAN_Boost_Xgboost 不修改，选用算法及适配范围见 components/wgan_trainer/PROVENANCE.md。

@@ -256,11 +256,13 @@ def _scope_key(row: dict[str, Any]) -> tuple[str, ...]:
     return tuple(str(row.get(field) or "") for field in SCOPE_FIELDS)
 
 
-def build_series(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """从人工批准的精确年度观测构建序列；冲突组整组排除，绝不取均值。"""
+def build_series(facts: list[dict[str, Any]], *, require_approval: bool = True
+                 ) -> list[dict[str, Any]]:
+    """默认从人工批准观测组序列；CLI 自动探索可显式关闭审批，不改候选审核状态。"""
     grouped: dict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
     for fact in facts:
-        if fact.get("review_status") != "approved" or fact.get("claim_type") != "observation":
+        if ((require_approval and fact.get("review_status") != "approved")
+                or fact.get("claim_type") != "observation"):
             continue
         flags = set(fact.get("uncertainty_flags") or []) - {"conflicting_scope_values"}
         if flags or not all(_scope_key(fact)):
@@ -291,6 +293,8 @@ def build_series(facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "evidence_ids": sorted({str(fact["fact_id"]) for fact in group}),
                     "duplicate_groups": sorted({str(fact.get("duplicate_group") or "")
                                                 for fact in group})})
+        if not require_approval:
+            row["evidence_status"] = "machine_candidate_unreviewed"
         rows.append(row)
     return rows
 

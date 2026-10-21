@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/aaf12329/WGAN_Trainer",
+  "revision": "0475240eda77c50095d63918a30a2af1450bb4bf",
+  "algorithm_sha256": {
+    "wgan_tools/wgan_training.py": "73286533b113878af9f5ca8f7102b0dcccb11a115d51fc004c0574c36882382c",
+    "wgan_tools/missing_statistics.py": "3f7412ae66e66f077623a5fb5d7b1d1635d4f50758ef5132674164604ef46995"
+  },
+  "adaptations": [
+    "common paths reference platform output",
+    "common I/O delegates platform atomic I/O",
+    "CPU profile and quality gates live in app/pipeline"
+  ]
+}

@@ -6,8 +6,11 @@
 约束：写入使用同目录临时文件和原子替换；追加也由调用方先读后整体原子写。
 """
 
+import csv
+import io
 import json
 import os
+import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -48,7 +51,77 @@ def read_json(path: Path):
 
 def write_json(path: Path, value) -> None:
     """序列化 JSON 并原子落盘；由材料快照与机器人会话状态调用。"""
-    write_text(path, json.dumps(value, ensure_ascii=False, indent=2) + "\n")
+    write_text(path, json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
+
+
+def read_csv_rows(path: Path) -> list[dict]:
+    """读取带 BOM 的审核 CSV；由 CLI 审核及离线分析调用。"""
+    return list(csv.DictReader(io.StringIO(read_text(path).lstrip("\ufeff"))))
+
+
+def write_csv_rows(path: Path, rows: list[dict], fields: list[str] | None = None) -> None:
+    """统一写候选与审计 CSV，嵌套字段存 JSON；由管线聚合入口调用。"""
+    fields = fields or list(dict.fromkeys(key for row in rows for key in row))
+    stream = io.StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=fields, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({key: json.dumps(value, ensure_ascii=False) if isinstance(
+            value, (list, dict)) else value for key, value in row.items()})
+    write_text(path, "\ufeff" + stream.getvalue())
+
+
+def read_frame(path: Path, max_rows: int = 10000):
+    """有界读取原字段表，保留字符串供缺失诊断，不隐式填值。"""
+    import pandas as pd
+
+    frame = pd.read_csv(io.StringIO(read_text(path)), dtype=str, keep_default_na=False,
+                        nrows=max_rows + 1)
+    if len(frame) > max_rows:
+        raise ValueError(f"输入超过 {max_rows} 行，请先缩小训练数据。")
+    return frame
+
+
+def write_frame(path: Path, frame) -> None:
+    """统一原子导出 DataFrame CSV，兼容 Excel BOM。"""
+    write_text(path, "\ufeff" + frame.to_csv(index=False))
+
+
+def save_figure(path: Path, figure) -> None:
+    """图表统一经字节入口原子保存；图形创建和关闭由绘图模块负责。"""
+    stream = io.BytesIO()
+    figure.savefig(stream, format="png", dpi=140, bbox_inches="tight")
+    write_bytes(path, stream.getvalue())
+
+
+def reset_pipeline_outputs(paths) -> None:
+    """只删除地址簿登记的上轮产物，保留用户其他文件；拒绝目录联接和链接越界。"""
+    root = paths.root
+    if root.is_symlink() or root.is_junction():
+        raise ValueError("output 不能使用符号链接或目录联接。")
+    root.mkdir(parents=True, exist_ok=True)
+    collections = [paths]
+    parent = paths.series_parent()
+    if parent.exists():
+        if parent.is_symlink() or parent.is_junction():
+            raise ValueError("output/series 不能使用链接。")
+        collections.extend(paths.series(child.name) for child in parent.iterdir()
+                           if child.is_dir() and re.fullmatch(r"[0-9a-f]{12}", child.name))
+    targets = []
+    for item in collections:
+        for target in item.registered_files():
+            current = target
+            while current != root:
+                if current.is_symlink() or current.is_junction():
+                    raise ValueError("登记产物中存在链接，请移除链接后重试。")
+                current = current.parent
+            if not target.resolve().is_relative_to(root.resolve()):
+                raise ValueError("登记产物越过 output，停止覆盖。")
+            if target.is_file():
+                targets.append(target)
+    # 所有目标先检查完成，再逐文件清理；从不递归删除整个 output。
+    for target in targets:
+        target.unlink()
 
 
 def read_bytes(path: Path) -> bytes:
