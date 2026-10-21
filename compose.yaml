@@ -9,6 +9,7 @@ x-python-service: &python-service
     INDUSTRY_REDIS_URL: redis://redis:6379/0
   volumes:
     - industry_data:/srv/industry/data
+    - ./output:/srv/industry/output
 
 services:
   postgres:

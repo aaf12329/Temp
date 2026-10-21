@@ -19,6 +19,9 @@ build/
 node_modules/
 data_demo/
 output/
+!/output/
+/output/*
+!/output/README.md
 *.db
 *.db-shm
 *.db-wal

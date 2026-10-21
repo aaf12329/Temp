@@ -31,7 +31,8 @@ def download(operation_id: SafeIdentifier, name: str, runtime: RT, project_id: S
     result = operation["result"]
     if operation["kind"] != "pipeline" or operation["state"] != "done" or name not in result["files"]:
         raise ServiceError("E_ARTIFACT_NOT_FOUND", "任务未完成或文件未登记。", 404)
-    root = DataPaths(runtime.settings.data_dir).pipeline(result["run_id"]).root.resolve()
+    root = DataPaths(runtime.settings.data_dir).pipeline(
+        result["run_id"], output=result.get("storage_layout") == "output-v1").root.resolve()
     path = (root / result["files"][name]).resolve()
     if not path.is_relative_to(root) or not path.is_file():
         raise ServiceError("E_ARTIFACT_NOT_FOUND", "文件不可用。", 404)

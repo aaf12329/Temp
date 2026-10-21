@@ -1,8 +1,8 @@
 """无 SQL 的 CLI 显式聚合入口。
 
 结构：read_urls → collect → _offline → summarize → run；main 仅解析参数/两次用户输入。
-调用：启动CLI.cmd / app.cli → main → run → 受限采集/隔离本地模型/API建议助手。
-数据流：网址TXT+一句需求 → 文件缓存 → 本地整理/可选WGAN/XGBoost → output 覆写产物。
+调用：启动脚本/02_命令行/启动CLI.bat / app.cli → main → run → 受限采集/隔离本地模型/API建议助手。
+数据流：网址TXT+一句需求 → 文件缓存 → 本地整理/可选WGAN/XGBoost → output/cli 分类覆写产物。
 只有 summarize 可调用 API；不创建 runtime、数据库或后台队列，不开发 GUI。
 """
 
@@ -33,7 +33,7 @@ from app.common.gan_config import load_gan_settings
 from app.common.paths import (
     CLI_CONFIG,
     CLI_LOCK,
-    OUTPUT_ROOT,
+    CLI_OUTPUT_ROOT,
     PROJECT_ROOT,
     DataPaths,
     PipelinePaths,
@@ -226,7 +226,9 @@ def summarize(question, analysis, modeling, evidence, config, settings, paths, *
              "所有自动抽取均为未人工复核候选。预测为探索性结果；合成样本不代表新增产业证据。", "",
              f"匹配段落 {analysis['counts']['selected_passages']}；数值候选 "
              f"{analysis['counts']['candidate_facts']}；可比年度行 {analysis['counts']['series_rows']}。", "",
-             "匹配信息见 information.csv，清洗结果见 cleaned.csv，排除理由见 rejected.csv。", ""]
+             f"匹配信息见 {paths.file('information').relative_to(paths.root).as_posix()}，"
+             f"清洗结果见 {paths.file('cleaned').relative_to(paths.root).as_posix()}，"
+             f"排除理由见 {paths.file('rejected').relative_to(paths.root).as_posix()}。", ""]
     for item in modeling.get("series_reports", []):
         lines.extend([f"## {item['scope']}", "", f"状态：{item['status']}", ""])
         lines.extend(f"- {reason}" for reason in item.get("requirements", []))
@@ -272,7 +274,9 @@ def accept_gan(modeling, paths, input_fn):
         gan = report.get("gan", {})
         print(f"[GAN审查] {report['scope']}：{gan.get('status')}；{gan.get('synthetic_rows', 0)}条", flush=True)
         if gan.get("tsne", {}).get("status") == "completed":
-            print(f"[t-SNE图片] {report['directory']}/gan_tsne.png（位于本轮output下）", flush=True)
+            series_paths = PipelinePaths(paths.root / report["directory"], organized=paths.organized)
+            reference = series_paths.file("tsne").relative_to(paths.root).as_posix()
+            print(f"[t-SNE图片] {reference}（位于本轮结果目录下）", flush=True)
         available = available or gan.get("status") == "accepted"
     if not available:
         print("[GAN] 没有通过初步检查的数据；仅用真实数据继续", flush=True)
@@ -287,7 +291,7 @@ def accept_gan(modeling, paths, input_fn):
 def run(url_file, question, config, settings, *, paths=None, adapter=None, advisor=None,
         input_fn=input):
     """无数据库全流程；覆盖前先完成输入校验，锁避免并发覆盖或并发训练。"""
-    paths = paths or PipelinePaths(OUTPUT_ROOT)
+    paths = paths or PipelinePaths(CLI_OUTPUT_ROOT, organized=True)
     question = question.strip()
     if not 1 <= len(question) <= 4000:
         raise ValueError("检索需求需要 1..4000 个字符。")
@@ -309,13 +313,15 @@ def run(url_file, question, config, settings, *, paths=None, adapter=None, advis
         staged, references = stage_records(records, files, workspace)
         try:
             analysis = _offline("cli-analyze", {"records": staged, "question": question,
-                                "reference_map": references, "output": str(paths.root)}, settings,
+                                "reference_map": references, "output": str(paths.root),
+                                "output_layout": paths.organized}, settings,
                                 workspace, config)
         except ServiceError as exc:
             reason = f"{exc.error.code}: {exc.error.message}"
             print(f"[整理未完成] {reason}；保留已采材料并输出状态", flush=True)
             analysis = fallback_analysis(question, records, paths, reason)
-        payload = {"output": str(paths.root), "forecast_at": datetime.now().astimezone().isoformat()}
+        payload = {"output": str(paths.root), "output_layout": paths.organized,
+                   "forecast_at": datetime.now().astimezone().isoformat()}
         try:
             modeling = _offline("cli-model", {**payload, "plan": True}, settings, workspace, config)
         except ServiceError as exc:
@@ -343,7 +349,7 @@ def run(url_file, question, config, settings, *, paths=None, adapter=None, advis
         write_json(paths.file("result"), final)
         write_json(paths.file("status"), {"status": "completed", "llm_status": api["status"],
                                           "warning": analysis.get("warning")})
-        print("[完成] 输出已更新：output/report.md、information.csv、cleaned.csv；"
+        print(f"[完成] 报告：{paths.file('report')}；数据：{paths.file('information').parent}；"
               "建模成功时另有 series/ 下预测、模型和图表。", flush=True)
         return final
 
@@ -369,7 +375,7 @@ def main(argv=None):
     except ServiceError as exc:
         raise SystemExit(f"[{exc.error.code}] {exc.error.message}；已生成文件仍保留在 output。") from None
     except (EOFError, KeyboardInterrupt):
-        raise SystemExit("\n[已停止] 未完成结果请以 output/status.json 为准。") from None
+        raise SystemExit("\n[已停止] 未完成结果请以 output/cli/metadata/status.json 为准。") from None
 
 
 if __name__ == "__main__":

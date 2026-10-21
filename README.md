@@ -25,7 +25,7 @@ Local assembly: React/Next.js forwards to FastAPI and a durable Python worker. U
 
 2026-10-21：三个 Python 模块已接线，统一使用根目录 .venv。验收范围与未完成项见 [集成验收记录](docs/集成验收记录.md)，接线细节见 [集成说明](docs/集成说明.md)。
 
-当前新增优先使用的 [CLI 版本](docs/CLI使用说明.md)：双击 `启动CLI.cmd`，先输入网址 TXT 地址（每行一个网站），再输入一句检索需求，之后自动采集、整理、判断数据是否可建模。仅必要时询问 WGAN 的 PyTorch/TensorFlow 选择，普通流程参数在 config/cli.json，GAN参数直接取原仓库副本 config/wgan.json。CLI 不使用 SQL，结果覆盖写入 output；后面的 HTTP 服务架构继续保留。
+当前新增优先使用的 [CLI 版本](docs/CLI使用说明.md)：双击 `启动脚本/02_命令行/启动CLI.bat`，先输入网址 TXT 地址（每行一个网站），再输入一句检索需求，之后自动采集、整理、判断数据是否可建模。仅必要时询问 WGAN 的 PyTorch/TensorFlow 选择，普通流程参数在 config/cli.json，GAN参数直接取原仓库副本 config/wgan.json。CLI 不使用 SQL，结果覆盖写入 output/cli；后面的 HTTP 服务架构继续保留。
 
 除最后的信息分析助手使用 API，其余运行在本机，GAN设备按原JSON选择。默认 BGE-small-zh-v1.5 INT8、浅树 XGBoost；GAN按原JSON训练，不做性能降档；缺失、清洗排除和采集失败原因都会在终端及产物中记录。自动建模保持未复核候选的探索性质，不把生成样本当成新事实。
 
@@ -54,11 +54,11 @@ FastAPI：校验、单调用方鉴权、任务提交、材料与结果查询
 
 ## Windows 安装与启动
 
-推荐双击根目录 **一键启动.bat**：调用 [快速部署](快速部署/README.md) 中的脚本，创建或复用根 `.venv`、安装 Python 依赖、识别 frontend/package.json 安装 npm 依赖，再启动 FastAPI、Worker和Next.js。默认网页 http://127.0.0.1:3000 ，API文档 http://127.0.0.1:8000/docs 。依赖未变时复用；支持明确指定已有Conda环境。根 `requirement.txt` 保留手动安装入口。已有3000/8000进程时需先正常关闭，入口不会接管其他服务。
+推荐双击 **[启动脚本/01_平台/一键启动.bat](启动脚本/01_平台/一键启动.bat)**：调用 [快速部署](快速部署/README.md) 中的脚本，创建或复用根 `.venv`、安装 Python 依赖、识别 frontend/package.json 安装 npm 依赖，再启动 FastAPI、Worker和Next.js。默认网页 http://127.0.0.1:3000 ，API文档 http://127.0.0.1:8000/docs 。依赖未变时复用；支持明确指定已有Conda环境。根 `requirement.txt` 保留手动安装入口。已有3000/8000进程时需先正常关闭，入口不会接管其他服务。
 
 启动前先显示 CPU、内存、显卡及 NVIDIA 显存/驱动，提供 CPU、NVIDIA GPU、按硬件自动选择和高级选项。选择保存在本机配置；GPU 安装后验证实际 CUDA 运算。CPU/GPU 目前对应 WGAN 的 PyTorch 后端，原训练 JSON 不随硬件降档。
 
-Quick start: run `一键启动.bat` to prepare the root environment and start API, worker and the standard Next.js frontend. Manual Conda interpreters remain supported. See the deployment guide for prerequisites and configuration. Final acceptance is paused at the owner's request.
+Quick start: run `启动脚本/01_平台/一键启动.bat` to prepare the root environment and start API, worker and the standard Next.js frontend. Manual Conda interpreters remain supported. See the deployment guide for prerequisites and configuration. Final acceptance is paused at the owner's request.
 
 Hardware is shown before an interactive CPU/CUDA selection. Choices are remembered locally, CUDA is verified with a real operation, and the original training parameters remain unchanged.
 
@@ -72,7 +72,7 @@ Hardware is shown before an interactive CPU/CUDA selection. Choices are remember
 
 脚本安装根锁定依赖、主服务和助手包，创建缺失的根 .env 并迁移数据库。已有配置保留。源码和持久数据不绑定原电脑目录；虚拟环境自身不随目录搬移复用，移动或克隆后重建。
 
-双击 启动API.cmd 和 启动Worker.cmd。API 默认仅监听 127.0.0.1:8000：
+单独调试时，双击 `启动脚本/03_开发维护/启动API.bat` 和 `启动Worker.bat`。API 默认仅监听 127.0.0.1:8000：
 
 - /docs：交互接口文档。
 - /health/live：进程存活。
@@ -139,7 +139,7 @@ demo 使用标注的假模型。真实模式在根 .env 设置 INDUSTRY_ADVISOR_
 
 ## 助手终端
 
-启动建议助手.cmd 和子目录原按钮均使用根环境。手动运行：
+`启动脚本/02_命令行/启动建议助手.bat` 使用部署配置所选的统一环境。原助手子目录重复按钮已归并。手动运行：
 
 ```powershell
 ./.venv/Scripts/python.exe -m app.advisor_cli --project kaili --demo chat
@@ -150,6 +150,10 @@ demo 使用标注的假模型。真实模式在根 .env 设置 INDUSTRY_ADVISOR_
 终端与接口共用同项目 JSON 会话及人工记忆；终端不自动读平台材料，带证据建议使用任务接口。独立 advisor_bot 仍可单独安装，包本身不依赖 FastAPI。
 
 ## 相对路径与目录
+
+所有新完整管线结果统一放在 [output](output/README.md)：CLI 为 output/cli，网页为 output/web/<执行令牌>。每轮包含 report.md，以及分类的 data/ CSV、charts/ PNG、models/ 模型和 metadata/ JSON；各统计口径分放 series/短哈希。旧结果保留原位置，不自动搬动。启动入口分类见 [启动脚本说明](启动脚本/README.md)。
+
+New pipeline results use output/cli or output/web/<run-token>, with separate CSV, chart, model and metadata directories. Windows launchers are grouped under 启动脚本. Historical artifacts remain readable. These storage and launcher changes have not been runtime-tested at the owner's request.
 
 配置和持久引用相对项目根或逻辑 data 根。程序执行时解析真实路径用于操作与边界检查，不把本机绝对路径写进 API 或研究导出。
 
@@ -163,10 +167,10 @@ Project-owned paths are rooted at the source/script location, independently of t
 ./
   .venv/                         唯一 Python 环境，不入库
   .env                           唯一本机服务配置，不入库
-  一键启动.bat                    自动部署并监管本机 API/Worker
+  启动脚本/                       按平台、命令行、开发维护分类的 BAT 入口
   requirement.txt                手动 pip/Conda 安装入口
   快速部署/                       部署入口、配置模板与使用说明
-  frontend/                       独立React/Next.js原型，暂不接后端
+  frontend/                       实际研究网页与独立设计预览
   app/                           服务、适配、任务、调度
   components/crawler/            爬虫研究源码，不写运行数据
   产业研究建议助手/               独立助手源码，不另建环境
@@ -179,6 +183,9 @@ Project-owned paths are rooted at the source/script location, independently of t
     advisor/<project_id>/        正式 JSON 会话、记忆、操作缓存
     advisor_demo/<project_id>/   隔离的演示数据
     workspaces/                  隔离运行副本，不是事实源
+  output/
+    cli/                         最新 CLI 结果；登记文件覆盖
+    web/<执行令牌>/              网页每次阶段结果；保留父结果
   work/                          源码备份、检查记录，不入库
 ```
 
@@ -198,8 +205,8 @@ Compose 先迁移数据库再启动服务。Python 服务共用同一镜像和�
 
 ## 检查与边界
 
-运行 运行检查.cmd 或 ./scripts/Test.ps1，分别执行服务、独立助手、爬虫离线测试并检查依赖一致性。实际 CPU 模型计算用 scripts/verify_environment.py，结果在 work/environment-check.json。
+恢复验收后，可手动运行 `启动脚本/03_开发维护/运行全部检查.bat` 或 ./scripts/Test.ps1，分别执行服务、独立助手、爬虫离线测试并检查依赖一致性。实际 CPU 模型计算用 scripts/verify_environment.py，结果在 work/environment-check.json。当前仍遵守所有者暂停测试的要求，本次目录与入口调整未运行验收。
 
-当前为单可信调用方服务，project_id 是材料归属检查，不等于用户授权。React/Next.js 仅有独立页面原型且不做登录；多用户授权、前后端接线、审核管理 HTTP 界面、训练服务入口、分布式文件存储和多主机限速未实施。文件锁限速要求共享同一文件系统。
+当前为单可信调用方服务，project_id 是材料归属检查，不等于用户授权。React/Next.js 已连接实际研究流程且不做登录；多用户授权、审核管理 HTTP 界面、分布式文件存储和多主机限速未实施。文件锁限速要求共享同一文件系统。
 
 原合同在 docs/source/，正式定义缺项在 docs/接口缺项与实现边界.md；历史“未接线”描述以本页当前状态为准。

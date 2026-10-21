@@ -1,6 +1,6 @@
 ﻿<#
 结构：展示硬件 → 读取配置/选择后端 → Resolve-Python → 安装依赖 → 本地服务入口。
-调用：根一键启动.bat → 本脚本 → scripts/Setup.ps1 / npm / app.local_service。
+调用：启动脚本/01_平台/一键启动.bat → 本脚本 → scripts/Setup.ps1 / npm / app.local_service。
 数据流：本地JSON与依赖指纹 → 单个Python环境、npm依赖、API + Worker + 标准Next前端。
 路径集中在开头；用户的 Conda 解释器必须明确指定，不随 PATH 悄悄切换环境。
 #>

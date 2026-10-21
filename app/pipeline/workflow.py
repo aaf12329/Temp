@@ -38,7 +38,7 @@ def analyze(message):
 
     started = time.perf_counter()
     config = CLIConfig.model_validate(message["config"])
-    paths = PipelinePaths(Path(message["output"]))
+    paths = PipelinePaths(Path(message["output"]), organized=message.get("output_layout", False))
     corpus = evidence.load_corpus(message["records"])
     passages = corpus["passages"][:config.max_passages]
     print(f"[整理] {len(corpus['documents'])} 份材料，{len(corpus['passages'])} 个段落；"
@@ -110,7 +110,7 @@ def analyze(message):
     for row in rejected[:10]:
         print(f"[排除] {row.get('fact_id')}: {'; '.join(row['cleaning_reasons'])}", flush=True)
     if len(rejected) > 10:
-        print("[排除] 其余原因见 output/rejected.csv", flush=True)
+        print(f"[排除] 其余原因见本轮 {paths.file('rejected').relative_to(paths.root).as_posix()}", flush=True)
     print("[完成] 信息整理完成。候选仍未人工复核，自动建模仅为探索。", flush=True)
     return result
 
@@ -119,7 +119,7 @@ def model(message):
     """检查各口径门槛，计划阶段不训练 GAN；正式阶段保存真实模型和图表。"""
     started = time.perf_counter()
     config = CLIConfig.model_validate(message["config"])
-    paths = PipelinePaths(Path(message["output"]))
+    paths = PipelinePaths(Path(message["output"]), organized=message.get("output_layout", False))
     analysis = read_json(paths.file("analysis"))
     grouped = defaultdict(list)
     for row in analysis["series"]:

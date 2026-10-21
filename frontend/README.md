@@ -6,7 +6,7 @@ React/Next.js frontend with a local FastAPI/worker connection. The actual workfl
 
 ## 启动
 
-完整平台：双击项目根目录“一键启动.bat”，默认网页 http://127.0.0.1:3000 ，API http://127.0.0.1:8000/docs 。脚本准备根Python环境及npm依赖，再监管API、Worker和Next。已有端口占用时不会接管其他服务。
+完整平台：双击“启动脚本/01_平台/一键启动.bat”，默认网页 http://127.0.0.1:3000 ，API http://127.0.0.1:8000/docs 。脚本准备根Python环境及npm依赖，再监管API、Worker和Next。已有端口占用时不会接管其他服务。
 
 已有依赖可在根目录运行：
 
@@ -39,7 +39,7 @@ GAN还有独立的真实训练样本门槛，达到XGBoost门槛不意味着一�
 
 ## 服务端边界
 
-浏览器只调用 /api/platform 白名单接口。Node从根.env或自身环境读取服务token，转发到本机FastAPI；不使用NEXT_PUBLIC凭据，不把token交给浏览器。POST检查同源，转发目标仅本机。正式网页产物保存在每次领取的独立data/pipeline目录，经鉴权下载；CLI继续覆盖根output登记产物，不用SQL。
+浏览器只调用 /api/platform 白名单接口。Node从根.env或自身环境读取服务token，转发到本机FastAPI；不使用NEXT_PUBLIC凭据，不把token交给浏览器。POST检查同源，转发目标仅本机。新网页产物保存在每次领取的独立output/web目录，经鉴权下载；历史任务继续读取data/pipeline。CLI覆盖output/cli登记产物，不用SQL。结果分类见根output/README.md。
 
 ## 设计组独立目录
 

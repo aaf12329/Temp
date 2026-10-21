@@ -51,7 +51,8 @@ def test_manual_gan_stages_and_immutable_parent(client, monkeypatch, legacy_impo
         if payload["action"] == "cli-analyze":
             value = {"counts": {"documents": 1, "selected_passages": 0, "candidate_facts": 100, "series_rows": 100},
                      "series": rows, "facts": [], "warning": "SYNTHETIC TEST ONLY"}
-            paths = PipelinePaths(__import__("pathlib").Path(payload["output"]))
+            paths = PipelinePaths(__import__("pathlib").Path(payload["output"]),
+                                  organized=payload.get("output_layout", False))
             write_json(paths.file("analysis"), value)
             from app.common.file_io import write_csv_rows
 
@@ -83,7 +84,7 @@ def test_manual_gan_stages_and_immutable_parent(client, monkeypatch, legacy_impo
     assert completed["stage"] == "completed"
     assert completed["modeling"]["series_reports"][0]["test"]["selected"]["n"] == 4
     assert any(name.endswith("shap.png") for name in completed["files"])
-    source = DataPaths(client.app.state.runtime.settings.data_dir).pipeline(review["run_id"])
+    source = DataPaths(client.app.state.runtime.settings.data_dir).pipeline(review["run_id"], output=True)
     assert not any(source.root.rglob("shap.png"))
     parent_review = read_json(source.series(__import__("hashlib").sha256(b"synthetic").hexdigest()[:12]).file("gan_review"))
     assert not parent_review["gan"].get("user_accepted", False)

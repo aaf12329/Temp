@@ -25,6 +25,7 @@ CRAWLER_SOURCE = CRAWLER_COMPONENT / "src"
 WGAN_SOURCE = PROJECT_ROOT / "components/wgan_trainer"
 CLI_CONFIG = PROJECT_ROOT / "config/cli.json"
 OUTPUT_ROOT = PROJECT_ROOT / "output"
+CLI_OUTPUT_ROOT = OUTPUT_ROOT / "cli"
 CLI_LOCK = PROJECT_ROOT / "work/cli.lock"
 CLI_CHECK_ROOT = PROJECT_ROOT / "work/cli-check"
 LOCAL_SERVICE_LOCK = PROJECT_ROOT / "work/quick-deploy/service.lock"
@@ -67,6 +68,7 @@ class PipelinePaths:
     """CLI 管线地址簿；聚合入口注入每轮独立目录，不接受网页指定的路径。"""
 
     root: Path
+    organized: bool = False
 
     def series_parent(self) -> Path:
         """集中登记多序列产物父目录。"""
@@ -93,11 +95,17 @@ class PipelinePaths:
             "gan_review": "gan_review.json", "evidence": "evidence.json",
             "comparison": "comparison.png", "shap": "shap.png",
         }
-        return self.root / names[name]
+        filename = names[name]
+        if not self.organized or name == "report":
+            return self.root / filename
+        category = ("charts" if filename.endswith(".png") else
+                    "models" if name == "model" else
+                    "data" if filename.endswith(".csv") else "metadata")
+        return self.root / category / filename
 
     def series(self, digest: str) -> "PipelinePaths":
         """短哈希隔离不同口径，避免中文名称和 Windows 长路径。"""
-        return PipelinePaths(self.series_parent() / digest)
+        return PipelinePaths(self.series_parent() / digest, organized=self.organized)
 
     def gan_directory(self) -> Path:
         """WGAN 原算法产物目录；文件名由内嵌组件自己的地址簿登记。"""
@@ -123,9 +131,15 @@ class DataPaths:
 
     root: Path
 
-    def pipeline(self, run_id: str) -> PipelinePaths:
-        """每轮 CLI 采集/清洗/训练结果的独立目录。"""
+    def pipeline(self, run_id: str, *, output: bool = False) -> PipelinePaths:
+        """新网页结果集中到output；未标记的历史任务仍解析原data/pipeline。"""
+        if output:
+            return PipelinePaths(self.output_root() / "web" / run_id, organized=True)
         return PipelinePaths(self.root / "pipeline" / run_id)
+
+    def output_root(self) -> Path:
+        """默认data的同级output；自定义数据根内隔离输出，避免沙箱污染主项目。"""
+        return self.root.parent / "output" if self.root.name == DATA_DIRECTORY_NAME else self.root / "output"
 
     def heavy_lock(self) -> Path:
         """单机重计算互斥锁，避免同时运行两组训练。"""

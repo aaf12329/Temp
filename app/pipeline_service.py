@@ -46,7 +46,8 @@ def _files(paths):
     """列出本轮可下载产物；只含目录内登记的普通文件，不接受浏览器路径。"""
     files = {}
     series = sorted(paths.series_parent().glob("*")) if paths.series_parent().is_dir() else []
-    for group in [paths, *[PipelinePaths(path) for path in series if path.is_dir() and not path.is_symlink()]]:
+    for group in [paths, *[PipelinePaths(path, organized=paths.organized)
+                          for path in series if path.is_dir() and not path.is_symlink()]]:
         for file in group.registered_files():
             if file.is_file() and file.resolve().is_relative_to(paths.root.resolve()):
                 reference = file.relative_to(paths.root).as_posix()
@@ -56,10 +57,24 @@ def _files(paths):
 
 def _copy_parent(runtime, parent, paths):
     """仅复制父操作登记文件到本令牌目录；旧Worker和其他决策不会互相覆盖。"""
-    source = DataPaths(runtime.settings.data_dir).pipeline(parent["run_id"])
+    source = DataPaths(runtime.settings.data_dir).pipeline(
+        parent["run_id"], output=parent.get("storage_layout") == "output-v1")
+    # 历史平铺结果升级为分类布局；只接受地址簿登记产物，不沿用外部路径。
+    target_map = {}
+    groups = [source]
+    if source.series_parent().is_dir():
+        groups.extend(PipelinePaths(path, organized=source.organized)
+                      for path in source.series_parent().iterdir()
+                      if path.is_dir() and not path.is_symlink() and not path.is_junction())
+    for group in groups:
+        destination_group = paths if group.root == source.root else paths.series(group.root.name)
+        target_map.update(zip(group.registered_files(), destination_group.registered_files()))
     for reference in parent["files"]:
         origin = (source.root / reference).resolve()
-        destination = (paths.root / reference).resolve()
+        target = target_map.get(source.root / reference)
+        if target is None:
+            raise ServiceError("E_ARTIFACT_PATH", "父产物未登记，不能继续处理。", 409)
+        destination = target.resolve()
         if not origin.is_relative_to(source.root.resolve()) or not destination.is_relative_to(paths.root.resolve()):
             raise ServiceError("E_ARTIFACT_PATH", "产物引用越界。", 409)
         write_bytes(destination, read_bytes(origin))
@@ -70,7 +85,7 @@ def execute(runtime, claim):
     request = PipelineRequest.model_validate(claim.request)
     if claim.attempts > 1 and request.stage == "model":
         raise ServiceError("E_PIPELINE_OUTCOME_UNKNOWN", "建模/建议执行曾中断，请核对产物后重新提交新操作。", 409)
-    paths = DataPaths(runtime.settings.data_dir).pipeline(claim.token.replace("-", ""))
+    paths = DataPaths(runtime.settings.data_dir).pipeline(claim.token.replace("-", ""), output=True)
     workspace = DataPaths(runtime.settings.data_dir).research_workspace(claim.token.replace("-", ""))
     if request.stage == "prepare":
         config = CLIConfig.model_validate(read_json(CLI_CONFIG))
@@ -85,7 +100,8 @@ def execute(runtime, claim):
         try:
             analysis = run_component({"action": "cli-analyze", "records": staged,
                 "question": request.question, "reference_map": references, "output": str(paths.root),
-                "config": config.model_dump(mode="json")}, workspace, runtime.settings.data_dir,
+                "config": config.model_dump(mode="json"), "output_layout": paths.organized},
+                workspace, runtime.settings.data_dir,
                 config.laptop.timeout_s, stream=True)
         except ServiceError as exc:
             analysis = fallback_analysis(request.question, records, paths, exc.error.message)
@@ -100,7 +116,8 @@ def execute(runtime, claim):
         if request.stage == "gan":
             config.gan.backend = request.framework
         context = {**context, "config": config.model_dump(mode="json")}
-    payload = {"action": "cli-model", "output": str(paths.root), "config": config.model_dump(mode="json"),
+    payload = {"action": "cli-model", "output": str(paths.root), "output_layout": paths.organized,
+               "config": config.model_dump(mode="json"),
                "forecast_at": context["forecast_at"], "stage": "gan" if request.stage == "gan" else "fit",
                "plan": request.stage == "prepare", "use_generated": request.use_generated}
     lock = DataPaths(runtime.settings.data_dir).heavy_lock()
@@ -120,7 +137,7 @@ def execute(runtime, claim):
         evidence = read_json(paths.file("evidence"))
         summarize(context["question"], analysis, modeling, selected_evidence(paths, evidence), config,
                   runtime.settings, paths, advisor=runtime.advisor)
-    result = {"stage": stage, "run_id": paths.root.name, "context": context,
+    result = {"stage": stage, "run_id": paths.root.name, "storage_layout": "output-v1", "context": context,
               "counts": analysis["counts"], "warning": analysis.get("warning"),
               "can_model": can_model, "gan_available": modeling["needs_gan"],
               "gan_usable": any(item.get("gan", {}).get("status") == "accepted"
@@ -129,5 +146,10 @@ def execute(runtime, claim):
               "llm": read_json(paths.file("llm")) if stage == "completed" else None,
               "report": read_text(paths.file("report")) if stage == "completed" else None}
     write_json(paths.file("config"), config.model_dump(mode="json"))
+    write_json(paths.file("manifest"), {"storage_layout": "output-v1", "run_id": result["run_id"],
+        "operation_id": request.operation_id, "parent_id": request.parent_id,
+        "project_id": request.project_id, "stage": stage, "question": context["question"],
+        "created_at": datetime.now().astimezone().isoformat(), "counts": result["counts"],
+        "modeling": modeling, "llm_status": result["llm"]["status"] if result["llm"] else None})
     result["files"] = _files(paths)
     return result

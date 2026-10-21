@@ -4,7 +4,7 @@
 
 ## 启动与输入
 
-双击根目录 `启动CLI.cmd`，只输入两项：
+双击 `启动脚本/02_命令行/启动CLI.bat`，只输入两项：
 
 ```text
 网址清单文件地址（每行一个网站）：<你的 TXT 地址>
@@ -54,7 +54,7 @@ Setup 的 init 步骤是保留的主服务安装过程，会准备服务数据�
        → 用户再选是否采用（默认0）；不采用则仅真实数据继续
   → XGBoost对比真实/所选增强方案，真实验证未改善则回退；不重新生成GAN数据
   → 真实测试评估 + 可选未来探索预测 + PNG
-  → summarize：匹配原文摘录 + 实际指标/缺口 → API助手 → output/report.md
+  → summarize：匹配原文摘录 + 实际指标/缺口 → API助手 → output/cli/report.md
 ```
 
 终端逐网址打印 HTTP、类型、成功/跳过及原因；例如 robots 禁止、登录墙、拦截、未支持的动态网页或扫描 PDF。已有 data/policy/site_policy.json 限制优先；无该主机记录时，用户输入的单页路径作为本轮允许声明，仍不绕过任何 robots、登录和访问限制。程序不能凭自动检查证明法律许可。
@@ -88,23 +88,23 @@ charts沿用原JSON：standard、tsne_perplexity=null（原默认30，小样本�
 
 ## 输出与覆盖
 
-每轮覆盖根 output 中程序登记的上轮文件；旧模型/旧图在新一轮没有模型时也会清掉，避免误认。用户自建文件保留，不递归删除 output。输入网址 TXT 不会被改写。
+每轮覆盖 output/cli 中程序登记的上轮文件；旧模型/旧图在新一轮没有模型时也会清掉，避免误认。用户自建文件保留，不递归删除目录，也不影响 output/web 的网页结果。输入网址 TXT 不会被改写。旧版根 output 平铺文件保留，未自动搬动；新结构见 [结果说明](../output/README.md)。
 
 | 文件 | 内容 |
 | --- | --- |
-| report.md / llm.json | 最终报告、API状态和建议 |
-| information.csv | 与需求匹配的原文片段、来源、坐标、向量分数 |
-| raw.csv / candidates.csv | 原始数值候选，未人工批准 |
-| cleaned.csv / rejected.csv | 可比候选与完整排除理由 |
-| access.json / materials.json | 各网址处理状态与来源文件引用 |
-| missing.json / missing.png | 缺失诊断与图表；没有数值时不伪造图表 |
-| analysis.json / series.csv | 结构化整理、口径序列与截断信息 |
-| config.json / result.json / status.json | 本轮实际配置、建模结果、完成状态 |
+| report.md / metadata/llm.json | 最终报告、API状态和建议 |
+| data/information.csv | 与需求匹配的原文片段、来源、坐标、向量分数 |
+| data/raw.csv / data/candidates.csv | 原始数值候选，未人工批准 |
+| data/cleaned.csv / data/rejected.csv | 可比候选与完整排除理由 |
+| metadata/access.json / metadata/materials.json | 各网址处理状态与来源文件引用 |
+| metadata/missing.json / charts/missing.png | 缺失诊断与图表；没有数值时不伪造图表 |
+| metadata/analysis.json / data/series.csv | 结构化整理、口径序列与截断信息 |
+| metadata/config.json / metadata/result.json / metadata/status.json | 本轮实际配置、建模结果、完成状态 |
 | series/短哈希/ | 各口径独立模型产物 |
 
-成功建模子目录含train/validation/test.csv、predictions.csv、可预测时forecast.csv、xgboost.json、evaluation.png、importance.png、trend.png、comparison.png与原生TreeSHAP的shap.png。实际训练GAN时增加generated.csv、quality.json、gan_review.json、gan.png及gan/权重与损失记录。generated.csv初筛通过也不自动标为已采用；是否进入最终模型另行记录。
+成功建模子目录的 data/ 含train/validation/test.csv、predictions.csv、可预测时forecast.csv；models/含xgboost.json；charts/含evaluation.png、importance.png、trend.png、comparison.png与原生TreeSHAP的shap.png。实际训练GAN时增加data/generated.csv、metadata/quality.json、metadata/gan_review.json、charts/gan.png及gan/权重与损失记录。generated.csv初筛通过也不自动标为已采用；是否进入最终模型另行记录。
 
-GAN 训练后还会输出 gan_tsne.png（真实训练样本/生成样本联合 t-SNE）、gan_tsne.csv（二维坐标、来源行号、生成标记）和 gan_tsne.json（抽样、随机种子、尺度拟合范围及参数）。点数与迭代次数直接取 config/wgan.json 的 charts；默认每类最多1000点、1000次迭代。MinMaxScaler(-1,1)只拟合真实训练表，验证/测试不参与投影。质量被拒的生成样本仍可展示，但图例注明 rejected；常量或样本不足会明确说明不适用。点云重叠不作为质量通过依据。
+GAN 训练后还会输出 charts/gan_tsne.png（真实训练样本/生成样本联合 t-SNE）、data/gan_tsne.csv（二维坐标、来源行号、生成标记）和 metadata/gan_tsne.json（抽样、随机种子、尺度拟合范围及参数）。点数与迭代次数直接取 config/wgan.json 的 charts；默认每类最多1000点、1000次迭代。MinMaxScaler(-1,1)只拟合真实训练表，验证/测试不参与投影。质量被拒的生成样本仍可展示，但图例注明 rejected；常量或样本不足会明确说明不适用。点云重叠不作为质量通过依据。
 
 缓存、来源快照和助手 JSON 会话仍在 data，便于审计和重用；不进入 Git。output 会覆盖，重要报告请使用者自行另存。配置和导出引用使用相对路径，运行时才解析本机绝对位置。
 

@@ -34,7 +34,9 @@ def deployment(tmp_path, monkeypatch):
     folder.mkdir(parents=True)
     for name in ("Start.ps1", "Hardware.ps1", "config.example.json"):
         shutil.copyfile(PROJECT_ROOT / "快速部署" / name, folder / name)
-    shutil.copyfile(PROJECT_ROOT / "一键启动.bat", root / "一键启动.bat")
+    buttons = root / "启动脚本/01_平台"
+    buttons.mkdir(parents=True)
+    shutil.copyfile(PROJECT_ROOT / "启动脚本/01_平台/一键启动.bat", buttons / "一键启动.bat")
     scripts = root / "scripts"
     scripts.mkdir()
     (scripts / "Setup.ps1").write_text(
@@ -87,7 +89,7 @@ def test_existing_interpreter_reuse_and_dependency_change(deployment):
 def test_bat_handles_chinese_space_path_and_propagates_failure(deployment):
     """真实 CMD 调用中文空格路径，计划不安装，错误退出码不丢失。"""
     root, config = deployment
-    command = ["cmd.exe", "/d", "/c", str(root / "一键启动.bat"), "-Plan"]
+    command = ["cmd.exe", "/d", "/c", str(root / "启动脚本/01_平台/一键启动.bat"), "-Plan"]
     good = subprocess.run(command, input="", capture_output=True, encoding="utf-8", errors="replace",
                           timeout=20, creationflags=subprocess.CREATE_NO_WINDOW)
     assert good.returncode == 0, good.stdout + good.stderr

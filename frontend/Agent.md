@@ -4,7 +4,7 @@
 
 人类负责视觉和交互设计确认；AI负责环境、运行、排错及按确认方案实现。不增加登录或用户中心。
 
-主项目运行：根目录一键启动.bat准备根.venv与npm依赖，启动API/Worker/Next。单独改前端可在此处npm ci、npm run dev，Node.js需要24+。按终端实际地址访问，端口占用不结束其他程序。设计预览不需要后端。
+主项目运行：启动脚本/01_平台/一键启动.bat准备根.venv与npm依赖，启动API/Worker/Next。单独改前端可在此处npm ci、npm run dev，Node.js需要24+。按终端实际地址访问，端口占用不结束其他程序。设计预览不需要后端。
 
 ResearchWorkspace是模式聚合层；LiveResearch是实际任务聚合层；ResearchPrototype是演示聚合层。实际数据经同源Node转发，服务token只在服务器环境。不要用NEXT_PUBLIC暴露密钥、不要在浏览器直接调用付费LLM、不在功能组件中绕过聚合层访问其他组件。
 

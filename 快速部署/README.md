@@ -1,6 +1,6 @@
 # 快速部署与一键启动
 
-在 Windows 双击项目根目录的 `一键启动.bat`。首次自动配置环境并启动 **FastAPI + 数据库队列 Worker + Next.js前端**；以后依赖未变时复用环境。npm识别并安装锁定依赖，当前标准前端位于frontend。网页“实际研究”已接本机服务；“设计预览”保留独立演示。
+在 Windows 双击 `启动脚本/01_平台/一键启动.bat`。首次自动配置环境并启动 **FastAPI + 数据库队列 Worker + Next.js前端**；以后依赖未变时复用环境。npm识别并安装锁定依赖，当前标准前端位于frontend。网页“实际研究”已接本机服务；“设计预览”保留独立演示。其他按钮按用途集中在 [启动脚本](../启动脚本/README.md)，根目录旧按钮已移动。
 
 现在首先展示本机 CPU、内存、显卡、NVIDIA 显存和驱动，然后让用户选择 **CPU / NVIDIA GPU / 按硬件自动选择**。高级选项提供 TensorFlow CPU、保留现有框架、暂不安装 GAN。成功读取驱动只代表候选 GPU 可用，实际安装 CUDA 版后还会执行一次小型 CUDA 运算；失败就停止并给出检查驱动或改选 CPU 的提示。Intel/AMD 显卡没有接入对应加速后端，不放进 GPU 菜单。
 
@@ -13,7 +13,7 @@
 ## 默认流程
 
 ```text
-一键启动.bat
+启动脚本/01_平台/一键启动.bat
 └─ 快速部署/Start.ps1
    ├─ Hardware.ps1：展示配置，接受运行版本选择
    ├─ 读取 config.example.json + config.local.json
@@ -55,7 +55,7 @@
 
 `gan_backend=none` 只跳过安装，不卸载已有框架。GPU 版与 CPU 版 PyTorch 使用同一个环境，不能并列安装；明确切换后端才替换版本。原 WGAN 训练 JSON 不因此改变。
 
-npm 目前负责**安装依赖**，独立前端预览见 ../frontend/README.md，不启动或接线该页面。未找到 package.json 时跳过 npm。此入口用于本机 database 队列；现有 `.env` 若设为 celery，会提示改用 Compose，不悄悄改写配置。
+npm 负责安装依赖，标准 frontend 会随 API/Worker 一同启动；独立设计预览见 ../frontend/README.md。未找到 package.json 时跳过 npm。此入口用于本机 database 队列；现有 `.env` 若设为 celery，会提示改用 Compose，不悄悄改写配置。
 
 ## 手动 Conda 路径
 
@@ -81,7 +81,7 @@ python -m pip install -r requirements/gan-pytorch.txt
 
 上述路径是占位示例，相对项目根目录解析：仅当环境确实位于相邻 conda-envs/industry 时可直接使用。请按实际位置填写 python.exe，不写 conda.exe；外部环境也可显式使用绝对路径，这属于本机配置而非源码路径。配置支持空格和中文。再双击一键启动即可，不依赖终端是否执行过 conda activate，也不会另外创建 .venv；安装与启动共用所选解释器。
 
-现有 `启动API.cmd` / `启动Worker.cmd` / `启动CLI.cmd` 等旧按钮仍固定使用根 .venv。选择 Conda 后统一使用新的一键启动；若手动启动 CLI，用所选环境的 `python -m app.pipeline_cli`。
+`启动脚本`中的命令行、单服务与检查按钮通过 scripts/Launch.ps1 复用本机部署配置所选解释器，默认根 .venv。底层 scripts/Start-Api.ps1 与 Start-Worker.ps1 仍固定根环境。手动 CLI 可以使用所选环境的 `python -m app.pipeline_cli`。
 
 ## 可选命令
 
