@@ -36,4 +36,17 @@ summary { cursor: pointer; }
 table { border-collapse: collapse; width: 100%; font-size: .9rem; }
 th, td { padding: 10px; border: 1px solid #ccc; text-align: left; }
 .table-scroll { overflow-x: auto; }
+.table-scroll table { min-width: 480px; }
+.chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 24px 0; }
+.chart { margin: 18px 0; padding: 12px; border: 1px solid #ccc; background: #fff; min-width: 0; }
+.chart-grid .chart { margin: 0; }
+.chart figcaption { font-weight: 600; line-height: 1.6; margin-bottom: 10px; }
+.chart svg { display: block; width: 100%; height: auto; max-height: 430px; }
+.chart svg text { font-family: system-ui, sans-serif; font-size: 11px; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; padding: 0; list-style: none; font-size: .85rem; }
+.legend span { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+.report-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+details:not(.demo) { margin: 20px 0; }
+.panel, .notice { overflow-wrap: anywhere; }
+@media (max-width: 760px) { .chart-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 600px) { main { padding: 20px 14px; } .panel { padding: 16px; } .steps { gap: 6px; } }

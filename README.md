@@ -2,9 +2,9 @@
 
 项目的目标很大，甚至可以说很宏大：把散落的公开信息转化为有来源、有口径、可质疑、可复核的产业判断。后端采集、研究分析和建议助手已连接；当前另有独立 React/Next.js 页面原型，后端接线留待后续。
 
-独立前端见 [frontend/README.md](frontend/README.md)：打开即用，没有登录、注册或用户中心，范围到 GAN 训练之前。输入、过程、整理结果和建模选择四个页面均使用浏览器内存状态与标注的合成数据，不提交真实任务、不调用模型。视觉设计后续替换。
+独立前端见 [frontend/README.md](frontend/README.md)：打开即用，没有登录、注册或用户中心。九个视图覆盖输入、整理、建模选择、GAN生成、t-SNE人工确认、XGBoost评估及最终建议。全部使用浏览器内存与标注的合成数据，不提交真实任务、不调用模型。视觉设计后续由人类确认；完整交互验收见 [前端后半流程验收](docs/前端后半流程验收记录.md)。
 
-Standalone frontend: React/Next.js/TypeScript with no login or backend connection. Four mock views stop before GAN training; layout styling remains provisional. See the frontend guide for local preview.
+Standalone frontend: React/Next.js/TypeScript with no login or backend connection. Nine mock views cover the complete interaction through GAN review, XGBoost evaluation and the final report. All results are synthetic; styling remains provisional. See the frontend guide for local preview.
 
 2026-10-21：三个 Python 模块已接线，统一使用根目录 .venv。验收范围与未完成项见 [集成验收记录](docs/集成验收记录.md)，接线细节见 [集成说明](docs/集成说明.md)。
 

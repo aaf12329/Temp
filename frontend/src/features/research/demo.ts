@@ -22,7 +22,7 @@ export function makeDemoResult(input: ResearchInput, scenario: Scenario): DemoRe
   const skipped = submitted > 1 ? 1 : 0;
   const canModel = scenario === "model-ready";
   return {
-    submitted, skipped, collected: submitted - skipped, rows: DEMO_ROWS.length, canModel,
-    reasons: canModel ? [] : ["演示：同口径的连续年度不足。", "演示：真实训练样本不足，尚不满足 WGAN 使用门槛。"],
+    submitted, skipped, collected: submitted - skipped, rows: canModel ? 40 : DEMO_ROWS.length, canModel,
+    reasons: canModel ? [] : ["演示：同口径的连续年度不足。", "演示：真实样本不足，尚不满足建模门槛；不进入 WGAN 或 XGBoost。"],
   };
 }
