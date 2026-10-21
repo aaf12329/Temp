@@ -1,6 +1,10 @@
 # 产业信息研究平台
 
-项目的目标很大，甚至可以说很宏大：把散落的公开信息转化为有来源、有口径、可质疑、可复核的产业判断。当前先把后端采集、研究分析和建议助手连接起来；React 页面与 Next.js 网站层留待后续。
+项目的目标很大，甚至可以说很宏大：把散落的公开信息转化为有来源、有口径、可质疑、可复核的产业判断。后端采集、研究分析和建议助手已连接；当前另有独立 React/Next.js 页面原型，后端接线留待后续。
+
+独立前端见 [frontend/README.md](frontend/README.md)：打开即用，没有登录、注册或用户中心，范围到 GAN 训练之前。输入、过程、整理结果和建模选择四个页面均使用浏览器内存状态与标注的合成数据，不提交真实任务、不调用模型。视觉设计后续替换。
+
+Standalone frontend: React/Next.js/TypeScript with no login or backend connection. Four mock views stop before GAN training; layout styling remains provisional. See the frontend guide for local preview.
 
 2026-10-21：三个 Python 模块已接线，统一使用根目录 .venv。验收范围与未完成项见 [集成验收记录](docs/集成验收记录.md)，接线细节见 [集成说明](docs/集成说明.md)。
 
@@ -11,8 +15,8 @@
 ## 职责与调用关系
 
 ```text
-未来 React / Next.js（尚未开发）
-           │ HTTP + JSON
+React / Next.js（独立页面原型，暂未接线）
+           ⋮ 后续 HTTP + JSON
            ▼
 FastAPI：校验、单调用方鉴权、任务提交、材料与结果查询
   ├─ 短查询 → services / 数据库
@@ -32,7 +36,7 @@ FastAPI：校验、单调用方鉴权、任务提交、材料与结果查询
 
 ## Windows 安装与启动
 
-推荐双击根目录 **一键启动.bat**：调用 [快速部署](快速部署/README.md) 中的脚本，创建或复用根 `.venv`、安装 Python 依赖、有前端 package.json 时安装 npm 依赖，再启动 FastAPI 与 Worker。依赖未变时复用；支持在本机配置指定 Conda 解释器。根 `requirement.txt` 保留手动安装入口。当前无前端工程，npm 明确跳过。
+推荐双击根目录 **一键启动.bat**：调用 [快速部署](快速部署/README.md) 中的脚本，创建或复用根 `.venv`、安装 Python 依赖、识别 frontend/package.json 安装 npm 依赖，再启动 FastAPI 与 Worker。依赖未变时复用；支持在本机配置指定 Conda 解释器。根 `requirement.txt` 保留手动安装入口。独立前端另在 frontend 运行 npm run dev，不随该按钮启动或接入后端。
 
 启动前先显示 CPU、内存、显卡及 NVIDIA 显存/驱动，提供 CPU、NVIDIA GPU、按硬件自动选择和高级选项。选择保存在本机配置；GPU 安装后验证实际 CUDA 运算。CPU/GPU 目前对应 WGAN 的 PyTorch 后端，原训练 JSON 不随硬件降档。
 
@@ -138,6 +142,7 @@ demo 使用标注的假模型。真实模式在根 .env 设置 INDUSTRY_ADVISOR_
   一键启动.bat                    自动部署并监管本机 API/Worker
   requirement.txt                手动 pip/Conda 安装入口
   快速部署/                       部署入口、配置模板与使用说明
+  frontend/                       独立React/Next.js原型，暂不接后端
   app/                           服务、适配、任务、调度
   components/crawler/            爬虫研究源码，不写运行数据
   产业研究建议助手/               独立助手源码，不另建环境
@@ -171,6 +176,6 @@ Compose 先迁移数据库再启动服务。Python 服务共用同一镜像和�
 
 运行 运行检查.cmd 或 ./scripts/Test.ps1，分别执行服务、独立助手、爬虫离线测试并检查依赖一致性。实际 CPU 模型计算用 scripts/verify_environment.py，结果在 work/environment-check.json。
 
-当前为单可信调用方服务，project_id 是材料归属检查，不等于用户授权。多用户登录与项目授权、React/Next.js、审核管理 HTTP 界面、训练服务入口、分布式文件存储和多主机限速未实施。文件锁限速要求共享同一文件系统。
+当前为单可信调用方服务，project_id 是材料归属检查，不等于用户授权。React/Next.js 仅有独立页面原型且不做登录；多用户授权、前后端接线、审核管理 HTTP 界面、训练服务入口、分布式文件存储和多主机限速未实施。文件锁限速要求共享同一文件系统。
 
 原合同在 docs/source/，正式定义缺项在 docs/接口缺项与实现边界.md；历史“未接线”描述以本页当前状态为准。

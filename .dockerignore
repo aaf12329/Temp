@@ -19,3 +19,6 @@ logs
 **/*.egg-info
 **/dist
 **/build
+**/node_modules
+**/.next
+**/*.tsbuildinfo

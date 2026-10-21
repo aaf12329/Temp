@@ -1,6 +1,6 @@
 # 快速部署与一键启动
 
-在 Windows 双击项目根目录的 `一键启动.bat`。首次自动配置环境并启动 **FastAPI + 数据库队列 Worker**；以后依赖未变时复用环境。当前没有前端工程，npm 步骤会明确跳过，不安装空壳前端。
+在 Windows 双击项目根目录的 `一键启动.bat`。首次自动配置环境并启动 **FastAPI + 数据库队列 Worker**；以后依赖未变时复用环境。当前已存在独立 frontend 原型，npm 自动识别并安装其锁定依赖；页面预览单独运行，不随此入口启动或连接后端。
 
 现在首先展示本机 CPU、内存、显卡、NVIDIA 显存和驱动，然后让用户选择 **CPU / NVIDIA GPU / 按硬件自动选择**。高级选项提供 TensorFlow CPU、保留现有框架、暂不安装 GAN。成功读取驱动只代表候选 GPU 可用，实际安装 CUDA 版后还会执行一次小型 CUDA 运算；失败就停止并给出检查驱动或改选 CPU 的提示。Intel/AMD 显卡没有接入对应加速后端，不放进 GPU 菜单。
 
@@ -8,7 +8,7 @@
 
 当前 GPU 依赖是 PyTorch 2.9.1+cu128（CUDA 12.8 版本）。安装对应运行依赖，**不安装显卡驱动或完整系统 CUDA Toolkit**；驱动需要用户系统预先具备。CPU 选项安装独立的 CPU 版 PyTorch，两者在同一环境中按选择切换。
 
-需要先安装 Python 3.12（建议包含 Windows Python Launcher）；没有 Launcher 时可指定 Python 路径。以后加入前端后，还需安装 Node.js（含 npm），版本按前端 package.json 的要求选择。脚本不自动安装系统级 Python、Node、Conda、GPU 驱动、Docker，也不会绕过网络失败。
+需要先安装 Python 3.12（建议包含 Windows Python Launcher）；没有 Launcher 时可指定 Python 路径。当前独立前端使用 Node.js 24 或更高版本（含 npm）。脚本不自动安装系统级 Python、Node、Conda、GPU 驱动、Docker，也不会绕过网络失败。
 
 ## 默认流程
 
@@ -52,7 +52,7 @@
 
 `gan_backend=none` 只跳过安装，不卸载已有框架。GPU 版与 CPU 版 PyTorch 使用同一个环境，不能并列安装；明确切换后端才替换版本。原 WGAN 训练 JSON 不因此改变。
 
-npm 目前负责**安装依赖**，不启动尚未设计的 Next.js 页面。前端开发后再接它的启动命令；未找到 package.json 时无需安装 Node。此入口用于本机 database 队列；现有 `.env` 若设为 celery，会提示改用 Compose，不悄悄改写配置。
+npm 目前负责**安装依赖**，独立前端预览见 ../frontend/README.md，不启动或接线该页面。未找到 package.json 时跳过 npm。此入口用于本机 database 队列；现有 `.env` 若设为 celery，会提示改用 Compose，不悄悄改写配置。
 
 ## 手动 Conda 路径
 

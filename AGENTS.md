@@ -18,7 +18,9 @@ Windows 使用数据库持久队列；Linux 容器入口为 Celery + Redis + Pos
 
 .env 只留本地，禁止输出凭据。自动化测试使用临时数据、假 HTTP 与假模型；本地 ONNX/XGBoost 验收只用合成输入。真实模型调用须有当次授权。记忆、历史、摘要继续采用 JSON 键值对；正式/演示数据按项目分别隔离。
 
-当前仍为单可信调用方 Bearer 鉴权，project_id 只校验材料归属，不等于用户授权。前端、多用户登录和用户项目权限未实施。服务只开放静态 HTML 与文本 PDF；浏览器/TLS 档未适配服务网络闸门，不能绕过。
+当前仍为单可信调用方 Bearer 鉴权，project_id 只校验材料归属，不等于用户授权。前端为独立未接线原型，不做登录、注册或用户中心；多用户和用户项目权限未实施。服务只开放静态 HTML 与文本 PDF；浏览器/TLS 档未适配服务网络闸门，不能绕过。
+
+2026-10-21 所有者前端范围：frontend 使用 Next.js/React/TypeScript，仅做到 GAN 训练前，输入/进度/结果/建模选择用标注的合成数据演示，不接后端、不调用模型。ResearchPrototype 为显式聚合层，源码结构与预览命令见 frontend/README.md。快速部署仅自动识别安装 npm 依赖，不启动或集成前端。
 
 2026-10-21 CLI 范围更新：pipeline_cli、pipeline/workflow、pipeline/training、pipeline/gan 为显式聚合层。CLI 不构造 runtime、不使用 SQL；输入为用户指定的每行网址 TXT 与终端一句需求。用户提供的单页路径视作本轮来源声明，已有 site_policy 人工禁令优先，robots、登录和网络限制继续强制执行。CLI 自动年度建模保持 machine_candidate_unreviewed，仅作探索；服务原有研究仍默认要求人工批准。output 只覆盖地址簿登记的上轮产物，不递归删除用户文件。
 

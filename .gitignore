@@ -27,3 +27,8 @@ output/
 
 # Per-machine deployment interpreter selection (may point to a manual Conda env)
 快速部署/config.local.json
+
+# Next.js local build/cache artifacts
+.next/
+*.tsbuildinfo
+frontend/next-env.d.ts
