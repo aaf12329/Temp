@@ -15,7 +15,7 @@ from app.common.paths import PROJECT_ROOT, DataPaths
 from app.core.errors import ServiceError
 
 
-def _streamed_run(command: list[str], *, timeout: float, input: str, **options):
+def _streamed_run(command: list[str], *, timeout: float | None, input: str, **options):
     """CLI 流式打印并在超时杀掉解释器子树，避免 Windows venv 启动器遗留训练。"""
     import psutil
 
@@ -38,7 +38,7 @@ def _streamed_run(command: list[str], *, timeout: float, input: str, **options):
     return subprocess.CompletedProcess(command, process.returncode)
 
 
-def run_component(payload: dict, workspace: Path, data_root: Path, timeout: float = 600,
+def run_component(payload: dict, workspace: Path, data_root: Path, timeout: float | None = 600,
                   *, stream: bool = False) -> dict:
     """在统一 Python 环境隔离旧模块全局状态；由显式适配层调用。"""
     paths = DataPaths(data_root)
@@ -47,9 +47,13 @@ def run_component(payload: dict, workspace: Path, data_root: Path, timeout: floa
     environment = {key: value for key, value in os.environ.items()
                    if key.upper() in {"SYSTEMROOT", "WINDIR", "PATH", "TEMP", "TMP",
                                       "LANG", "LC_ALL", "HOME", "USERPROFILE"}}
-    environment.update({"PYTHONUTF8": "1", "CUDA_VISIBLE_DEVICES": "-1",
-                        "OMP_NUM_THREADS": "2", "MKL_NUM_THREADS": "2",
-                        "TF_NUM_INTRAOP_THREADS": "2", "TF_NUM_INTEROP_THREADS": "1",
+    if payload["action"] != "cli-model":
+        environment.update({"CUDA_VISIBLE_DEVICES": "-1", "OMP_NUM_THREADS": "2",
+                            "MKL_NUM_THREADS": "2", "TF_NUM_INTRAOP_THREADS": "2",
+                            "TF_NUM_INTEROP_THREADS": "1"})
+    elif "CUDA_VISIBLE_DEVICES" in os.environ:
+        environment["CUDA_VISIBLE_DEVICES"] = os.environ["CUDA_VISIBLE_DEVICES"]
+    environment.update({"PYTHONUTF8": "1",
                         "INDUSTRY_COMPONENT_WORKSPACE": str(workspace),
                         "INDUSTRY_COMPONENT_MODEL_DIR": str(paths.model_directory()),
                         "INDUSTRY_COMPONENT_MODEL_REFERENCE": "data/models/bge-small-zh-v1.5-int8"})

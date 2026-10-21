@@ -74,14 +74,29 @@ def generated_quality(real, generated) -> dict:
     nearest = NearestNeighbors(n_neighbors=1).fit(normalized_real).kneighbors(
         normalized_fake, return_distance=True)[0][:, 0]
     duplicate_fraction = float((nearest < 1e-5).mean())
+    mean_shift = np.abs(fake.mean(axis=0) - source.mean(axis=0)) / np.maximum(
+        source.std(axis=0), 1e-8)
+    joint_columns = variable & (fake.std(axis=0) > 1e-8)
+    correlation_difference = 0.0
+    if int(joint_columns.sum()) >= 2:
+        correlation_difference = float(np.max(np.abs(
+            np.corrcoef(source[:, joint_columns], rowvar=False)
+            - np.corrcoef(fake[:, joint_columns], rowvar=False))))
     checks = {"range": bool(within.mean() >= 0.95),
               "distribution": bool(max(distances) <= 0.35),
               "spread": bool(len(spread) and ((spread >= 0.1) & (spread <= 3)).all()),
-              "memorization": duplicate_fraction <= 0.1}
+              "memorization": duplicate_fraction <= 0.1,
+              "mean_location": bool(max(mean_shift) <= 0.5),
+              "joint_correlation": correlation_difference <= 0.35,
+              "sample_count": len(fake) >= 16}
     return {"accepted": all(checks.values()), "checks": checks,
             "normalized_wasserstein": dict(zip(real.columns, map(float, distances))),
             "spread_ratio": spread.tolist(), "in_range_fraction": float(within.mean()),
             "near_duplicate_fraction": duplicate_fraction,
+            "mean_shift_in_real_std": dict(zip(real.columns, map(float, mean_shift))),
+            "max_correlation_difference": correlation_difference,
+            "thresholds": {"max_mean_shift_std": 0.5, "max_correlation_difference": 0.35,
+                           "max_normalized_wasserstein": 0.35, "min_generated_rows": 16},
             "fit_scope": "training_only", "heuristic": True,
             "reason": "通过训练分布初筛，仍须真实验证集比较" if all(checks.values())
-                      else "合成分布、范围、多样性或近重复门槛未通过；使用真实数据"}
+                      else "合成数据的均值、相关性、分布、范围、多样性或近重复初筛未通过；使用真实数据"}

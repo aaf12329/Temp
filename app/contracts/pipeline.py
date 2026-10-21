@@ -2,7 +2,7 @@
 
 结构：Laptop → GANParameters → GAN → Cleaning → CLIConfig。
 调用：CLI/桥接入口 → Pydantic；数据流：JSON → 有界 CPU 配置 → 模型聚合层。
-GAN 参数名沿用 WGAN_Trainer，CPU 档限制规模；未知字段直接报错。
+GAN 参数来自 WGAN_Trainer 原 JSON，不套用轻薄本性能上限；未知字段直接报错。
 """
 
 from typing import Literal
@@ -26,29 +26,29 @@ class Laptop(Strict):
 
 
 class GANParameters(Strict):
-    """WGAN-GP 两框架共用参数；默认小网络、CPU，无 GPU 分配。"""
+    """WGAN-GP 原配置参数；只校验数学有效性，不限制训练规模。"""
 
-    epochs: int = Field(default=100, ge=1, le=5000)
-    batch_size: int = Field(default=32, ge=2, le=256)
-    latent_dim: int = Field(default=16, ge=1, le=128)
-    n_critic: int = Field(default=2, ge=1, le=10)
-    learning_rate: float = Field(default=0.0002, gt=0, le=0.1)
-    lambda_gp: float = Field(default=10, ge=0, le=100)
+    epochs: int = Field(default=5000, ge=1)
+    batch_size: int = Field(default=64, ge=2)
+    latent_dim: int = Field(default=100, ge=1)
+    n_critic: int = Field(default=5, ge=1)
+    learning_rate: float = Field(default=0.0002, gt=0)
+    lambda_gp: float = Field(default=10, ge=0)
     beta1: float = Field(default=0.5, ge=0, lt=1)
     beta2: float = Field(default=0.9, ge=0, lt=1)
-    generator_layers: tuple[int, ...] = (32, 64)
-    critic_layers: tuple[int, ...] = (64, 32)
-    device: Literal["cpu"] = "cpu"
-    gpu_memory_mb: Literal[0] = 0
+    generator_layers: tuple[int, ...] = (128, 256, 512)
+    critic_layers: tuple[int, ...] = (256, 128, 64)
+    device: str = Field(default="auto", pattern=r"^(auto|cpu|cuda:\d+)$")
+    gpu_memory_mb: int = Field(default=8192, ge=0)
     seed: int = Field(default=42, ge=0, le=2**32 - 1)
-    log_every: int = Field(default=10, ge=1, le=5000)
+    log_every: int = Field(default=1, ge=1)
 
     @field_validator("generator_layers", "critic_layers")
     @classmethod
-    def small_layers(cls, values):
-        """限制 CPU 档网络宽度；由 JSON 解析调用。"""
-        if not 1 <= len(values) <= 4 or any(not 1 <= n <= 512 for n in values):
-            raise ValueError("CPU 档网络需要 1..4 层，每层 1..512 个单元。")
+    def valid_layers(cls, values):
+        """沿用原算法的有效网络结构检查，不截断层宽。"""
+        if not 1 <= len(values) <= 8 or any(n < 1 for n in values):
+            raise ValueError("网络需要 1..8 层，每层为正整数。")
         return values
 
 
@@ -56,11 +56,16 @@ class GAN(Strict):
     """训练开关和门槛独立于原训练器的超参数。"""
 
     backend: Literal["pytorch", "tensorflow"] = "pytorch"
+    config_file: str | None = "config/wgan.json"
     mode: Literal["auto", "off"] = "auto"
     min_real_samples: int = Field(default=64, ge=32, le=10000)
-    generated_ratio: float = Field(default=1, gt=0, le=2)
-    max_generated: int = Field(default=2000, ge=16, le=10000)
-    tsne_max_points: int = Field(default=600, ge=20, le=1000)
+    n_generate: int = Field(default=2000, ge=1)
+    generation_batch_size: int = Field(default=256, ge=1)
+    precision: Literal["float32"] = "float32"
+    tsne_max_points: int = Field(default=2000, ge=2)
+    tsne_max_iter: int = Field(default=1000, ge=250)
+    tsne_perplexity: float | None = Field(default=None, gt=0)
+    timeout_s: float | None = Field(default=None, gt=0)
     params: GANParameters = Field(default_factory=GANParameters)
 
 

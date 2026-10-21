@@ -1,0 +1,47 @@
+{
+  "training": {
+    "device": "auto",
+    "gpu_memory_mb": 8192,
+    "batch_size": 64,
+    "epochs": 5000,
+    "n_generate": 2000,
+    "generation_batch_size": 256,
+    "latent_dim": 100,
+    "n_critic": 5,
+    "learning_rate": 0.0002,
+    "lambda_gp": 10.0,
+    "beta1": 0.5,
+    "beta2": 0.9,
+    "generator_layers": [128, 256, 512],
+    "critic_layers": [256, 128, 64],
+    "precision": "float32",
+    "seed": 42,
+    "log_every": 1
+  },
+  "preprocessing": {
+    "exclude_columns": ["Reference"],
+    "encode_columns": ["Pollutant"],
+    "group_columns": null,
+    "missing_markers": ["", "NaN", "nan", "NAN", "NA", "N/A", "null", "NULL", "None", "none", "<NA>"],
+    "policy": {
+      "knn_max_missing": 0.2,
+      "drop_above": 0.4,
+      "n_neighbors": 5,
+      "min_observed": 20,
+      "min_common_features": 2,
+      "min_group_size": 5,
+      "validation_repeats": 3,
+      "validation_fraction": 0.15,
+      "min_improvement": 0.05,
+      "random_state": 42,
+      "row_drop_at": 0.8,
+      "statistics_alpha": 0.05
+    }
+  },
+  "charts": {
+    "style": "standard",
+    "tsne_perplexity": null,
+    "tsne_max_samples_per_group": 1000,
+    "tsne_max_iter": 1000
+  }
+}

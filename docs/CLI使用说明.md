@@ -1,6 +1,6 @@
 # CLI 使用说明
 
-当前实现优先服务 i5-12450H、16 GB 内存的 CPU 轻薄本：不做前端，不启动数据库；除了最后的信息分析助手，所有处理均在本机运行。
+当前不做前端、不启动数据库。检索与 XGBoost 使用本地 CPU；GAN 按所有者后续要求取消性能兼容限制，直接读取原仓库 JSON。除了最后的信息分析助手，处理都在本机进行。
 
 ## 启动与输入
 
@@ -11,7 +11,7 @@
 要检索什么信息（一句话）：贵阳餐饮业的收入、消费规模与发展变化
 ```
 
-清单可放桌面或其他位置，支持中文、空格、带引号的 Windows 绝对地址。每行一个 http(s) 网页或文本 PDF 地址；空行和 # 开头注释忽略。示例为 config/urls.example.txt。其余模型参数读取 config/cli.json。
+清单可放桌面或其他位置，支持中文、空格、带引号的 Windows 绝对地址。每行一个 http(s) 网页或文本 PDF 地址；空行和 # 开头注释忽略。示例为 config/urls.example.txt。普通流程参数读取 config/cli.json，GAN 的训练及图形参数直接读取 config/wgan.json。
 
 也可以在项目根目录运行：
 
@@ -25,6 +25,8 @@
 
 ```powershell
 ./scripts/Setup.ps1 -GANBackend pytorch
+# 当前NVIDIA测试机可选CUDA版，仍使用同一个根环境
+./scripts/Setup.ps1 -GANBackend pytorch-cuda
 # 可选 TensorFlow，仍安装在相同根 .venv
 ./scripts/Setup.ps1 -GANBackend tensorflow
 ./.venv/Scripts/python.exe -m app.cli model-setup
@@ -65,14 +67,15 @@ Setup 的 init 步骤是保留的主服务安装过程，会准备服务数据�
 | 数字抽取与基本清洗 | 本地证据规则，保留原文坐标与单位 | 不调用语言模型 |
 | 训练异常标记 | IsolationForest，100棵树 | 至少64条真实训练样本才拟合；默认只标记，不把异常等同错误 |
 | 缺失诊断 | WGAN_Trainer 的 pandas/pyampute/SciPy | 只诊断，不伪造缺年/目标标签 |
-| 可选增强 | WGAN-GP，PyTorch 2.9.1+cpu 或 TensorFlow CPU 2.21.0 | 小网络，100轮，CPU，单任务 |
+| 可选增强 | WGAN-GP，PyTorch 或 TensorFlow | config/wgan.json 原参数：5000轮、原网络、device=auto |
 | 年度预测 | XGBoost 3.1.1，120棵树，深度2 | CPU，2线程，无自动超参搜索 |
 | 文字结论与建议 | 根 .env 选择的 API 语言模型 | 只在最后调用 |
 
-默认最多100网址、16 MB规范化正文、2000段落、10000数值候选、3条年度序列。截断和跳过会记录。单个本地分析/建模阶段最长1200秒，可在 JSON 中调整；超时停止解释器子树并回退已有数据。预算是工程限制，不能保证任意网页/任意数据都在固定耗时内完成。
+默认最多100网址、16 MB规范化正文、2000段落、10000数值候选、3条年度序列。截断和跳过会记录。普通本地分析阶段默认最长1200秒；GAN正式建模阶段默认不设超时（gan.timeout_s=null），不强制屏蔽GPU或限定线程。Ctrl+C会停止解释器子树。预算是工程限制，不能保证任意网页/任意数据都在固定耗时内完成。
 
-GAN 只有达到真实训练门槛且有尝试必要时才询问框架。终端输入1或pytorch；2或tf/tensorflow；0跳过。其余参数在 JSON 的 gan.params：epochs、batch_size、latent_dim、n_critic、learning_rate、lambda_gp、beta1/beta2、generator_layers、critic_layers、seed、log_every。CPU 档固定 device=cpu、gpu_memory_mb=0。框架缺失时提示依赖文件，本轮保留真实数据模型。
+GAN 达到真实训练门槛且有尝试必要时，终端只询问框架：1/pytorch、2/tf/tensorflow、0跳过。训练与绘图直接读取 config/wgan.json，该文件为 WGAN_Trainer 原 config.json 的逐字节副本，不再套用100轮或小网络。默认training：epochs=5000、batch_size=64、latent_dim=100、n_critic=5、learning_rate=0.0002、lambda_gp=10、G=[128,256,512]、D=[256,128,64]、device=auto、gpu_memory_mb=8192、n_generate=2000、generation_batch_size=256、precision=float32、seed=42、log_every=1。实际设备由原算法与所安装框架决定，不暗中改为CPU；本机测试阶段改用CUDA版PyTorch，auto可选择GPU；CPU版部署仍可选requirements/gan-pytorch.txt。原配置中的Reference/Pollutant是实验专用列名，年度管线输入已数值化，不套用这些列名或填造标签；此边界记录在配置来源报告中。框架缺失或明确GPU不可用会报告失败，不擅自换框架。
 
+charts沿用原JSON：standard、tsne_perplexity=null（原默认30，小样本时调整）、每组最多1000点、1000次迭代。不再限为600点/500次。两组使用真实训练表拟合的MinMaxScaler(-1,1)并联合降维。均值漂移、跨列相关性、范围、多样性和近重复采用独立的数值初筛；通过初筛不等于GAN可靠，最后还须真实验证集比较。
 ## 自动建模边界
 
 自动提取保持 pending，不假冒人工批准；CLI 允许结构检查通过的候选做探索，标记 machine_candidate_unreviewed，原 HTTP 服务仍默认要求人工审核。
@@ -99,6 +102,6 @@ GAN 只有达到真实训练门槛且有尝试必要时才询问框架。终端�
 
 成功建模的子目录含 train/validation/test.csv、predictions.csv、可预测时的forecast.csv、xgboost.json、evaluation.png（实际/预测、残差、直方图）、importance.png、trend.png。实际训练 GAN 时再增加 generated.csv、quality.json、gan.png 和 gan/ 下数值权重/归一化/损失记录。
 
-GAN 训练后还会输出 gan_tsne.png（真实训练样本/生成样本联合 t-SNE）、gan_tsne.csv（二维坐标、来源行号、生成标记）和 gan_tsne.json（抽样、随机种子、尺度拟合范围及参数）。默认最多600点，两类各最多300，CPU最多500次迭代；可在 gan.tsne_max_points 调整，上限1000。StandardScaler 只拟合真实训练表，验证/测试不参与投影。质量被拒的生成样本仍可展示，但图例注明 rejected；常量或样本不足会明确说明不适用。点云重叠不作为质量通过依据。
+GAN 训练后还会输出 gan_tsne.png（真实训练样本/生成样本联合 t-SNE）、gan_tsne.csv（二维坐标、来源行号、生成标记）和 gan_tsne.json（抽样、随机种子、尺度拟合范围及参数）。点数与迭代次数直接取 config/wgan.json 的 charts；默认每类最多1000点、1000次迭代。MinMaxScaler(-1,1)只拟合真实训练表，验证/测试不参与投影。质量被拒的生成样本仍可展示，但图例注明 rejected；常量或样本不足会明确说明不适用。点云重叠不作为质量通过依据。
 
 缓存、来源快照和助手 JSON 会话仍在 data，便于审计和重用；不进入 Git。output 会覆盖，重要报告请使用者自行另存。配置和导出引用使用相对路径，运行时才解析本机绝对位置。

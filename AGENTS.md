@@ -18,4 +18,6 @@ Windows 使用数据库持久队列；Linux 容器入口为 Celery + Redis + Pos
 
 2026-10-21 CLI 范围更新：pipeline_cli、pipeline/workflow、pipeline/training、pipeline/gan 为显式聚合层。CLI 不构造 runtime、不使用 SQL；输入为用户指定的每行网址 TXT 与终端一句需求。用户提供的单页路径视作本轮来源声明，已有 site_policy 人工禁令优先，robots、登录和网络限制继续强制执行。CLI 自动年度建模保持 machine_candidate_unreviewed，仅作探索；服务原有研究仍默认要求人工批准。output 只覆盖地址簿登记的上轮产物，不递归删除用户文件。
 
-只有最终助手可调用 API；其余模型在 CPU 子进程运行，不接收 API 凭据。默认 PyTorch CPU，可选 TensorFlow CPU，均安装于同一个根 .venv。GAN 参数在 config/cli.json，真实训练集分割在 GAN/训练异常模型之前，验证和测试不包含合成数据。原始独立 WGAN_Trainer/WGAN_Boost_Xgboost 不修改，选用算法及适配范围见 components/wgan_trainer/PROVENANCE.md。
+只有最终助手可调用 API；其余模型在本地子进程运行，不接收 API 凭据。GAN遵循原JSON的device=auto，当前测试环境为CUDA版PyTorch；可选TensorFlow，均安装于同一个根 .venv。GAN 参数在 config/cli.json，真实训练集分割在 GAN/训练异常模型之前，验证和测试不包含合成数据。原始独立 WGAN_Trainer/WGAN_Boost_Xgboost 不修改，选用算法及适配范围见 components/wgan_trainer/PROVENANCE.md。
+
+后续所有者明确变更：GAN不再做轻薄本性能兼容，原config.json逐字节保存为config/wgan.json，训练与charts参数直接生效（5000轮、原网络、device=auto）。GAN正式阶段默认不限时、不强制CPU/线程；其他本地检索/XGBoost预算保持。100轮小档仅作为此前接线测试历史，不能当作正式默认。

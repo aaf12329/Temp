@@ -103,10 +103,11 @@ def gan_plot(history, destination):
     plt.close(figure)
 
 
-def gan_tsne(real, generated, paths, *, accepted: bool, max_points=600, threads=2, seed=42):
+def gan_tsne(real, generated, paths, *, accepted: bool, max_points=2000, threads=None, seed=42,
+             max_iter=1000, perplexity=None):
     """训练数据拟合尺度，固定随机抽样后联合降维真实/生成样本；不接收验证和测试。"""
     from sklearn.manifold import TSNE
-    from sklearn.preprocessing import StandardScaler
+    from sklearn.preprocessing import MinMaxScaler
     from threadpoolctl import threadpool_limits
 
     metadata = {"status": "skipped", "fit_scope": "real_training_only",
@@ -121,7 +122,7 @@ def gan_tsne(real, generated, paths, *, accepted: bool, max_points=600, threads=
     real_ids = np.sort(rng.choice(len(real), min(len(real), max_points // 2), replace=False))
     fake_ids = np.sort(rng.choice(len(generated), min(len(generated), max_points // 2), replace=False))
     # 缩放器只拟合原始真实训练表，抽样不会引入测试信息，也不让生成分布决定尺度。
-    scaler = StandardScaler().fit(real)
+    scaler = MinMaxScaler(feature_range=(-1, 1)).fit(real)
     combined = np.vstack([scaler.transform(real.iloc[real_ids]),
                           scaler.transform(generated.iloc[fake_ids])])
     if not np.isfinite(combined).all():
@@ -132,9 +133,13 @@ def gan_tsne(real, generated, paths, *, accepted: bool, max_points=600, threads=
         metadata["reason"] = "所有字段均为常量，没有可解释的分布结构"
         write_json(paths.file("tsne_meta"), metadata)
         return metadata
-    perplexity = min(30.0, (len(combined) - 1) / 3)
+    actual_perplexity = 30.0 if perplexity is None else perplexity
+    if actual_perplexity >= len(combined):
+        if perplexity is not None:
+            raise ValueError("JSON 中的 t-SNE perplexity 必须小于抽样总数。")
+        actual_perplexity = max(1.0, (len(combined) - 1) / 3)
     with threadpool_limits(limits=threads):
-        points = TSNE(n_components=2, perplexity=perplexity, max_iter=500,
+        points = TSNE(n_components=2, perplexity=actual_perplexity, max_iter=max_iter,
                       init="pca", learning_rate="auto", random_state=seed,
                       method="barnes_hut", n_jobs=threads).fit_transform(combined)
     rows = []
@@ -149,7 +154,7 @@ def gan_tsne(real, generated, paths, *, accepted: bool, max_points=600, threads=
     for start, stop, color, marker, label in [
             (0, len(real_ids), "#223c64", "o", "Real training"),
             (len(real_ids), len(points), "#df779c", "s",
-             "Synthetic (quality accepted)" if accepted else "Synthetic (quality rejected)")]:
+             "Synthetic (initial checks passed)" if accepted else "Synthetic (initial checks failed)")]:
         axis.scatter(points[start:stop, 0], points[start:stop, 1], color=color,
                      marker=marker, alpha=0.7, s=24, label=label)
     axis.set(xlabel="t-SNE 1", ylabel="t-SNE 2", title="WGAN-GP: real training vs synthetic")
@@ -160,7 +165,8 @@ def gan_tsne(real, generated, paths, *, accepted: bool, max_points=600, threads=
     save_figure(paths.file("tsne"), figure)
     plt.close(figure)
     metadata.update(status="completed", plotted_real=len(real_ids), plotted_synthetic=len(fake_ids),
-                    perplexity=perplexity, max_iter=500, method="barnes_hut",
+                    perplexity=actual_perplexity, max_iter=max_iter, method="barnes_hut",
+                    scaling="MinMaxScaler(-1,1), fit real training only",
                     real_row_indices=real_ids.tolist(), synthetic_row_indices=fake_ids.tolist())
     write_json(paths.file("tsne_meta"), metadata)
     return metadata

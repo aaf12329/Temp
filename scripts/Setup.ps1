@@ -1,4 +1,4 @@
-﻿param([string]$PythonPath = '', [ValidateSet('pytorch', 'tensorflow', 'none')][string]$GANBackend = 'pytorch')
+﻿param([string]$PythonPath = '', [ValidateSet('pytorch', 'pytorch-cuda', 'tensorflow', 'none')][string]$GANBackend = 'pytorch')
 $ErrorActionPreference = 'Stop'
 $env:PYTHONUTF8 = '1'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)

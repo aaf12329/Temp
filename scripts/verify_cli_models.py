@@ -1,4 +1,4 @@
-"""独立 CPU 模型冒烟与资源观测，不联网、不读真实研究数据、不调用付费模型。
+"""独立原配置模型验收与资源观测，不联网、不读真实研究数据、不调用付费模型。
 
 结构：main → 单后端默认档训练 → 编码/质量/图表 → 资源记录。
 调用：维护者每次用新进程运行一个 backend；数据流：合成64x3表 → 实际模型 → work/cli-check。
@@ -19,7 +19,7 @@ from app.contracts.pipeline import CLIConfig
 
 
 def main():
-    """用根环境单后端 CPU 实际训练默认100轮并记录峰值工作集。"""
+    """用根环境读取原 JSON 完整训练并记录实际设备与资源。"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", choices=["pytorch", "tensorflow"], required=True)
     args = parser.parse_args()
@@ -29,17 +29,26 @@ def main():
 
     config = CLIConfig()
     config.gan.backend = args.backend
+    from app.common.gan_config import load_gan_settings
+
+    config.gan, _ = load_gan_settings(config.gan)
     paths = PipelinePaths(CLI_CHECK_ROOT / args.backend)
     frame = pd.DataFrame(np.random.default_rng(42).normal(size=(64, 3)), columns=list("abc"))
     started = time.perf_counter()
     generated, report = augment(frame, config.gan, paths, config.laptop.threads)
     memory = psutil.Process().memory_info()
-    result = {"backend": args.backend, "version": report.get("version"), "device": "cpu",
+    result = {"backend": args.backend, "version": report.get("version"), "device": report["device"],
               "epochs": config.gan.params.epochs, "shape": list(frame.shape),
               "seconds": round(time.perf_counter() - started, 3),
               "peak_rss_mb": round(getattr(memory, "peak_wset", memory.rss) / 1024**2, 2),
               "status": report["status"], "synthetic_rows": report["synthetic_rows"],
               "quality_accepted": generated is not None, "synthetic_fixture_only": True}
+    if args.backend == "pytorch":
+        import torch
+
+        if torch.cuda.is_available():
+            result["gpu_name"] = torch.cuda.get_device_name()
+            result["gpu_peak_allocated_mb"] = round(torch.cuda.max_memory_allocated() / 1024**2, 2)
     write_json(paths.file("runtime"), result)
     assert report["status"] in {"accepted", "rejected"}, report
     assert paths.file("generated").exists()

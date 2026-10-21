@@ -29,6 +29,7 @@ from app.common.file_io import (
     write_json,
     write_text,
 )
+from app.common.gan_config import load_gan_settings
 from app.common.paths import (
     CLI_CONFIG,
     CLI_LOCK,
@@ -140,8 +141,10 @@ def collect(urls, config, settings, *, adapter=None):
 
 def _offline(action, payload, settings, workspace, config):
     """在同一 .venv 子进程执行本地模型，流式打印训练进度且不传 API 密钥。"""
+    timeout = (config.gan.timeout_s if action == "cli-model" and not payload.get("plan")
+               and config.gan.mode != "off" else config.laptop.timeout_s)
     return run_component({"action": action, **payload, "config": config.model_dump(mode="json")},
-                         workspace, settings.data_dir, config.laptop.timeout_s, stream=True)
+                         workspace, settings.data_dir, timeout, stream=True)
 
 
 def fallback_analysis(question, records, paths, reason):
@@ -268,7 +271,7 @@ def run(url_file, question, config, settings, *, paths=None, adapter=None, advis
         reset_pipeline_outputs(paths)
         write_json(paths.file("status"), {"status": "running"})
         write_json(paths.file("config"), config.model_dump(mode="json"))
-        print("[开始] CPU 笔记本档 / 单任务 / 线程上限 " + str(config.laptop.threads), flush=True)
+        print("[开始] 检索/XGBoost 为 CPU 档；GAN 完全按 config/wgan.json，不做性能降档", flush=True)
         print("[清洗] 本地规则检查；IsolationForest 仅在真实训练样本达到门槛时运行", flush=True)
         records, files, evidence, access = collect(urls, config, settings, adapter=adapter)
         write_json(paths.file("access"), ignored + access)
@@ -318,6 +321,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         config = CLIConfig.model_validate(read_json(project_input(args.config)))
+        config.gan, _ = load_gan_settings(config.gan)
         url_file = args.urls_file or input("网址清单文件地址（每行一个网站）：").strip()
         question = args.query or input("要检索什么信息（一句话）：").strip()
         settings = Settings(api_token="cli-unused-" + uuid4().hex)

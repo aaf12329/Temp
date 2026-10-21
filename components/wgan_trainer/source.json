@@ -9,5 +9,6 @@
     "common paths reference platform output",
     "common I/O delegates platform atomic I/O",
     "CPU profile and quality gates live in app/pipeline"
-  ]
+  ],
+  "config_sha256": "e2058a8526129ee20706d1d0f6bbcaf55fb2b9975571a941d7e9b05a850bba6c"
 }

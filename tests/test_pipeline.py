@@ -65,11 +65,28 @@ def test_url_file_lines_duplicates_invalid_and_budget(tmp_path):
 
 
 def test_config_cpu_budget_and_typo_rejected():
-    """JSON 拼错及 CPU 档过大网络不静默接受。"""
-    for payload in [{"epochs": 0}, {"device": "cuda:0"}, {"generator_layers": [4096]},
+    """数学无效/拼错配置拒绝，但不对 GAN 施加性能上限。"""
+    for payload in [{"epochs": 0}, {"device": "invalid"}, {"generator_layers": [0]},
                     {"batchsize": 32}]:
         with pytest.raises(ValidationError):
             GANParameters.model_validate(payload)
+    assert GANParameters(epochs=10000, device="cuda:0", generator_layers=[4096]).epochs == 10000
+
+
+def test_reference_json_training_and_charts_are_not_downgraded():
+    """原 JSON 的5000轮、网络、设备和绘图预算直接生效，不使用旧100轮档。"""
+    from app.common.gan_config import load_gan_settings
+    from app.common.paths import project_input
+
+    source = read_json(project_input("config/wgan.json"))
+    resolved, report = load_gan_settings(CLIConfig().gan)
+    for name in GANParameters.model_fields:
+        actual = resolved.params.model_dump(mode="json")[name]
+        assert actual == source["training"][name]
+    assert resolved.n_generate == source["training"]["n_generate"]
+    assert resolved.tsne_max_points == source["charts"]["tsne_max_samples_per_group"] * 2
+    assert resolved.tsne_max_iter == source["charts"]["tsne_max_iter"]
+    assert report["source"] == "config/wgan.json"
 
 
 @pytest.mark.parametrize("choice,expected", [("", "pytorch"), ("tf", "tensorflow"),
@@ -145,6 +162,20 @@ def test_rules_and_generated_quality_do_not_promote_facts():
     frame = pd.DataFrame(np.random.default_rng(42).normal(size=(100, 3)), columns=list("abc"))
     assert not generated_quality(frame, frame.copy())["accepted"]
     assert training_outliers(frame, CLIConfig().cleaning, 2)[1]["status"] == "evaluated"
+
+
+def test_quality_rejects_mean_shift_and_changed_joint_structure():
+    """单列范围/Wasserstein 看似接近也不能掩盖均值漂移或跨列关系改变。"""
+    rng = np.random.default_rng(42)
+    real = pd.DataFrame(rng.normal(size=(1000, 3)), columns=list("abc"))
+    shifted = pd.DataFrame(rng.normal(size=(1000, 3)), columns=list("abc"))
+    shifted["b"] += 1.0
+    result = generated_quality(real, shifted)
+    assert not result["accepted"] and not result["checks"]["mean_location"]
+    fake = real.copy()
+    fake["b"] = fake["a"]
+    result = generated_quality(real, fake)
+    assert not result["accepted"] and not result["checks"]["joint_correlation"]
 
 
 def test_tsne_subsamples_and_labels_rejected_generation(tmp_path):
@@ -274,6 +305,9 @@ def test_real_cpu_wgan_two_backends(tmp_path, legacy_imports, backend):
 
     config = CLIConfig()
     config.gan.backend = backend
+    config.gan.config_file = None  # 仅自动化测试使用显式微型夹具，不修改正式 JSON。
+    config.gan.params.device = "cpu"
+    config.gan.n_generate = 64
     config.gan.params.epochs = 2
     config.gan.params.log_every = 1
     config.gan.params.generator_layers = (8, 8)

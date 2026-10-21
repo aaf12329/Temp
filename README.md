@@ -4,9 +4,9 @@
 
 2026-10-21：三个 Python 模块已接线，统一使用根目录 .venv。验收范围与未完成项见 [集成验收记录](docs/集成验收记录.md)，接线细节见 [集成说明](docs/集成说明.md)。
 
-当前新增优先使用的 [CLI 版本](docs/CLI使用说明.md)：双击 `启动CLI.cmd`，先输入网址 TXT 地址（每行一个网站），再输入一句检索需求，之后自动采集、整理、判断数据是否可建模。仅必要时询问 WGAN 的 PyTorch/TensorFlow 选择，其他参数在 config/cli.json。CLI 不使用 SQL，结果覆盖写入 output；后面的 HTTP 服务架构继续保留。
+当前新增优先使用的 [CLI 版本](docs/CLI使用说明.md)：双击 `启动CLI.cmd`，先输入网址 TXT 地址（每行一个网站），再输入一句检索需求，之后自动采集、整理、判断数据是否可建模。仅必要时询问 WGAN 的 PyTorch/TensorFlow 选择，普通流程参数在 config/cli.json，GAN参数直接取原仓库副本 config/wgan.json。CLI 不使用 SQL，结果覆盖写入 output；后面的 HTTP 服务架构继续保留。
 
-除最后的信息分析助手使用 API，其余运行在本机 CPU。默认 BGE-small-zh-v1.5 INT8、小型 WGAN-GP、浅树 XGBoost；缺失、清洗排除和采集失败原因都会在终端及产物中记录。自动建模保持未复核候选的探索性质，不把生成样本当成新事实。
+除最后的信息分析助手使用 API，其余运行在本机，GAN设备按原JSON选择。默认 BGE-small-zh-v1.5 INT8、浅树 XGBoost；GAN按原JSON训练，不做性能降档；缺失、清洗排除和采集失败原因都会在终端及产物中记录。自动建模保持未复核候选的探索性质，不把生成样本当成新事实。
 
 ## 职责与调用关系
 

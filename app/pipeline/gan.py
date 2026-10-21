@@ -10,15 +10,18 @@ from importlib.metadata import PackageNotFoundError, version
 import numpy as np
 
 from app.common.file_io import write_frame, write_json
+from app.common.gan_config import load_gan_settings
 from app.pipeline.cleaning import generated_quality
 from app.pipeline.plots import gan_plot, gan_tsne
 
 
 def augment(frame, config, paths, threads: int):
     """仅拟合传入训练表，复用两后端原 WGAN-GP 算法；返回 (表或None, 报告)。"""
-    report = {"model": "WGAN-GP", "backend": config.backend, "device": "cpu",
+    config, source = load_gan_settings(config)
+    report = {"model": "WGAN-GP", "backend": config.backend, "device": config.params.device,
               "params": config.params.model_dump(mode="json"), "status": "skipped",
-              "real_train_rows": len(frame), "synthetic_rows": 0, "quality": None}
+              "real_train_rows": len(frame), "synthetic_rows": 0, "quality": None,
+              "config_source": source}
     if config.mode == "off" or len(frame) < config.min_real_samples:
         return None, {**report, "reason": f"未启用或真实训练样本不足 {config.min_real_samples} 行"}
     try:
@@ -29,17 +32,6 @@ def augment(frame, config, paths, threads: int):
             if config.backend != "tensorflow":
                 raise
             report["version"] = version("tensorflow")
-        if config.backend == "pytorch":
-            import torch
-
-            torch.set_num_threads(threads)
-        else:
-            import tensorflow as tf
-
-            tf.config.set_visible_devices([], "GPU")
-            tf.config.threading.set_intra_op_parallelism_threads(threads)
-            tf.config.threading.set_inter_op_parallelism_threads(1)
-
         from wgan_tools.wgan_training import (
             WGANConfig,
             generate_samples,
@@ -47,13 +39,15 @@ def augment(frame, config, paths, threads: int):
             train_wgan_tensorflow,
         )
 
-        print(f"[WGAN] {config.backend} {report['version']} / CPU / "
+        print(f"[WGAN配置] {source}", flush=True)
+        print(f"[WGAN] {config.backend} {report['version']} / device={config.params.device} / "
               f"{len(frame)} 个真实训练样本 / {config.params.epochs} epochs", flush=True)
         trainer = train_wgan_pytorch if config.backend == "pytorch" else train_wgan_tensorflow
         params = WGANConfig(**config.params.model_dump())
         trained = trainer(frame, params, save_directory=paths.gan_directory(), overwrite=True)
-        count = min(config.max_generated, int(len(frame) * config.generated_ratio))
-        generated = generate_samples(trained, count, seed=params.seed)
+        report["device"] = trained.device
+        generated = generate_samples(trained, config.n_generate, seed=params.seed,
+                                      batch_size=config.generation_batch_size)
         # 变化量是原值的确定函数，不允许 GAN 自行生成互相矛盾的派生特征。
         if {"latest_value", "previous_value", "older_value", "change", "prior_change",
                 "available_period_age"}.issubset(generated.columns):
@@ -71,7 +65,8 @@ def augment(frame, config, paths, threads: int):
         write_json(paths.file("quality"), quality)
         gan_plot(trained.history, paths.file("gan_plot"))
         tsne = gan_tsne(frame, generated, paths, accepted=quality["accepted"],
-                        max_points=config.tsne_max_points, threads=threads, seed=params.seed)
+                        max_points=config.tsne_max_points, threads=None, seed=params.seed,
+                        max_iter=config.tsne_max_iter, perplexity=config.tsne_perplexity)
         report.update(status="accepted" if quality["accepted"] else "rejected",
                       synthetic_rows=len(generated), quality=quality, reason=quality["reason"], tsne=tsne)
         print(f"[t-SNE] {tsne['status']}：真实训练 vs 生成样本，最多 {config.tsne_max_points} 点", flush=True)

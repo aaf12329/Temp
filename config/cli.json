@@ -14,27 +14,15 @@
     "backend": "pytorch",
     "mode": "auto",
     "min_real_samples": 64,
-    "generated_ratio": 1.0,
-    "max_generated": 2000,
-    "tsne_max_points": 600,
-    "params": {
-      "epochs": 100,
-      "batch_size": 32,
-      "latent_dim": 16,
-      "n_critic": 2,
-      "learning_rate": 0.0002,
-      "lambda_gp": 10.0,
-      "beta1": 0.5,
-      "beta2": 0.9,
-      "generator_layers": [32, 64],
-      "critic_layers": [64, 32],
-      "device": "cpu",
-      "gpu_memory_mb": 0,
-      "seed": 42,
-      "log_every": 10
-    }
+    "config_file": "config/wgan.json",
+    "timeout_s": null
   },
-  "laptop": {"threads": 2, "max_rows": 10000, "max_columns": 32, "timeout_s": 1200},
+  "laptop": {
+    "threads": 2,
+    "max_rows": 10000,
+    "max_columns": 32,
+    "timeout_s": 1200
+  },
   "llm": "api",
   "max_urls": 100,
   "max_text_bytes": 16000000,
