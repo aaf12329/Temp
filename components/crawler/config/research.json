@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "rule_version": "kaili-research-v1",
+  "project_id": "kaili-sour-soup",
+  "research_question": "凯里酸汤鱼相关产业的公开证据及可比年度指标",
+  "keywords": ["酸汤鱼", "酸汤", "红酸汤", "稻花鱼", "木姜子"],
+  "queries": [
+    "凯里酸汤鱼市场规模、消费需求、门店经营与产业发展",
+    "贵州酸汤产业产值、企业营业收入、销量与投资",
+    "酸汤鱼上游原材料番茄、辣椒、稻花鱼、木姜子的供应和价格"
+  ],
+  "subjects": ["凯里酸汤鱼", "酸汤鱼", "酸汤产业", "酸汤", "餐饮业", "辣椒", "番茄", "稻花鱼", "木姜子"],
+  "regions": ["黔东南", "黔南", "黔西南", "贵州", "凯里", "贵阳", "遵义", "毕节", "铜仁", "安顺", "六盘水", "三都", "麻江", "雷山", "丹寨", "黄平", "施秉", "镇远", "台江", "剑河", "黎平"],
+  "semantic_threshold": 0.64,
+  "semantic_exclude_keywords": ["酸菜鱼"],
+  "threshold_status": "agent_spotchecked_top_candidates_not_benchmark_calibrated",
+  "min_periods": 20,
+  "min_train_samples": 10,
+  "min_test": 4,
+  "forecast_at": "2026-10-20T23:59:59+08:00"
+}

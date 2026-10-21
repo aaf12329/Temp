@@ -16,6 +16,9 @@ ALEMBIC_CONFIG = PROJECT_ROOT / "alembic.ini"
 MIGRATIONS_DIR = PROJECT_ROOT / "migrations"
 DEPENDENCY_LOCK = PROJECT_ROOT / "requirements.lock.txt"
 OPENAPI_FILE = PROJECT_ROOT / "docs/openapi.json"
+CRAWLER_COMPONENT = PROJECT_ROOT / "components/crawler"
+CRAWLER_BRIDGE = PROJECT_ROOT / "app/crawler/bridge.py"
+ADVISOR_COMPONENT = PROJECT_ROOT / "产业研究建议助手"
 DATA_DIRECTORY_NAME = "data"
 DATABASE_FILENAME = "platform.db"
 
@@ -25,6 +28,43 @@ class DataPaths:
     """登记采集服务数据位置；由 Storage 创建并提供给服务读取。"""
 
     root: Path
+
+    def crawler_workspace(self, token: str) -> Path:
+        """返回隔离采集工作区；由集成适配器调用。"""
+        return self.root / "workspaces/crawler" / token
+
+    def network_directory(self) -> Path:
+        """跨进程网络限速账本目录；由采集守卫调用。"""
+        return self.root / "workspaces/network"
+
+    def network_host(self, host_digest: str, suffix: str) -> Path:
+        """返回主机限速锁或时间戳位置；由网络守卫调用。"""
+        return self.network_directory() / (host_digest + suffix)
+
+    def artifact_path(self, category: str, record_id: str, digest: str, suffix: str) -> Path:
+        """返回按内容寻址的不可变材料位置；由采集晋升流程调用。"""
+        return self.root / category / record_id / (digest + suffix)
+
+    def advisor_root(self, project_id: str) -> Path:
+        """项目隔离的建议会话根；由建议适配器调用。"""
+        return self.root / "advisor" / project_id
+
+    def advisor_operation(self, project_id: str, operation_id: str, name: str) -> Path:
+        """返回建议调用的缓存、锁与开始标记；由幂等适配器调用。"""
+        names = {"result": "result.json", "lock": "operation.lock", "started": "started.json"}
+        return self.advisor_root(project_id) / "operations" / operation_id / names[name]
+
+    def operation_directory(self, operation_id: str) -> Path:
+        """研究结果目录；由操作任务入口调用。"""
+        return self.root / "research" / operation_id
+
+    def research_workspace(self, operation_id: str) -> Path:
+        """研究子进程的隔离输入根；由研究入口调用。"""
+        return self.root / "workspaces/research" / operation_id
+
+    def model_directory(self) -> Path:
+        """统一环境的向量模型缓存；由研究入口调用。"""
+        return self.root / "models/bge-small-zh-v1.5-int8"
 
     def path(self, name: str) -> Path:
         """按登记名称返回路径；由存储、策略和快照服务调用。"""
