@@ -34,7 +34,11 @@ FastAPI：校验、单调用方鉴权、任务提交、材料与结果查询
 
 推荐双击根目录 **一键启动.bat**：调用 [快速部署](快速部署/README.md) 中的脚本，创建或复用根 `.venv`、安装 Python 依赖、有前端 package.json 时安装 npm 依赖，再启动 FastAPI 与 Worker。依赖未变时复用；支持在本机配置指定 Conda 解释器。根 `requirement.txt` 保留手动安装入口。当前无前端工程，npm 明确跳过。
 
+启动前先显示 CPU、内存、显卡及 NVIDIA 显存/驱动，提供 CPU、NVIDIA GPU、按硬件自动选择和高级选项。选择保存在本机配置；GPU 安装后验证实际 CUDA 运算。CPU/GPU 目前对应 WGAN 的 PyTorch 后端，原训练 JSON 不随硬件降档。
+
 Quick start: run `一键启动.bat` to prepare the root environment and start API/Worker. Manual Conda interpreters are supported through local deployment config; npm dependencies are installed only when a frontend project exists. See the deployment guide for prerequisites and configuration.
+
+Hardware is shown before an interactive CPU/CUDA selection. Choices are remembered locally, CUDA is verified with a real operation, and the original training parameters remain unchanged.
 
 使用 Python 3.12，在项目根目录运行：
 

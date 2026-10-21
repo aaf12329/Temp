@@ -1,5 +1,5 @@
 ﻿<#
-结构：读取配置 → Resolve-Python → Install-Python / Install-Frontend → 本地服务入口。
+结构：展示硬件 → 读取配置/选择后端 → Resolve-Python → 安装依赖 → 本地服务入口。
 调用：根一键启动.bat → 本脚本 → scripts/Setup.ps1 / npm / app.local_service。
 数据流：本地 JSON 与依赖指纹 → 单个 Python 环境、npm 依赖、API + Worker。
 路径集中在开头；用户的 Conda 解释器必须明确指定，不随 PATH 悄悄切换环境。
@@ -8,7 +8,9 @@ param(
     [string]$ConfigPath = '',
     [switch]$SetupOnly,
     [switch]$Reinstall,
-    [switch]$Plan
+    [switch]$Plan,
+    [switch]$ChooseBackend,
+    [switch]$NonInteractive
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -27,11 +29,13 @@ $DeployPaths = @{
     SetupLock = Join-Path $ProjectRootPath 'work\quick-deploy\setup.lock'
     Setup = Join-Path $ProjectRootPath 'scripts\Setup.ps1'
     Init = Join-Path $ProjectRootPath 'scripts\init_config.py'
+    Hardware = Join-Path $PSScriptRoot 'Hardware.ps1'
     FingerprintInputs = @('requirement.txt', 'requirements.lock.txt', 'pyproject.toml',
-        '产业研究建议助手/pyproject.toml', 'scripts/Setup.ps1', '快速部署/Start.ps1',
+        '产业研究建议助手/pyproject.toml', 'scripts/Setup.ps1', '快速部署/Start.ps1', '快速部署/Hardware.ps1',
         'requirements/gan-pytorch.txt', 'requirements/gan-pytorch-cuda.txt',
         'requirements/gan-tensorflow.txt')
 }
+. $DeployPaths.Hardware
 
 function Invoke-Checked {
     <# 运行本机工具并把非零退出码转为失败；供安装与初始化步骤调用。 #>
@@ -61,7 +65,7 @@ function Read-DeployConfig {
     if ($settings.port -isnot [int] -or $settings.port -lt 1 -or $settings.port -gt 65535) {
         throw 'port must be an integer between 1 and 65535.'
     }
-    foreach ($name in @('install_npm', 'prepare_vector_model')) {
+    foreach ($name in @('install_npm', 'prepare_vector_model', 'choose_backend')) {
         if ($settings.$name -isnot [bool]) { throw "$name must be true or false." }
     }
     foreach ($name in @('python_path', 'frontend_dir')) {
@@ -149,6 +153,7 @@ function Install-Python {
         $arguments = @{ PythonPath = $Python; GANBackend = $Settings.gan_backend; UseExistingEnvironment = $true }
         & $DeployPaths.Setup @arguments
         if ($LASTEXITCODE -ne 0) { throw 'Python setup failed; retry after correcting the error above.' }
+        Confirm-GPUBackend $Settings $Python
         # 首次安装可能新增 GAN，记录安装后的身份，避免下次无意义重装。
         $identity = Get-PythonIdentity $Python
         $fingerprint = Get-Fingerprint $files "$ProjectRootPath|$Python|$identity|$($Settings.gan_backend)"
@@ -158,10 +163,20 @@ function Install-Python {
         Invoke-Checked $Python @('-m', 'pip', 'check')
         Invoke-Checked $Python @($DeployPaths.Init)
         Invoke-Checked $Python @('-m', 'app.cli', 'init')
+        Confirm-GPUBackend $Settings $Python
     }
     if ($Settings.prepare_vector_model) {
         Write-Host 'Preparing local vector model (existing verified cache is reused)...'
         Invoke-Checked $Python @('-m', 'app.cli', 'model-setup')
+    }
+}
+
+function Confirm-GPUBackend {
+    <# 显式 GPU 版本安装后执行一次真实 CUDA 小运算；供依赖安装/复用调用。 #>
+    param($Settings, [string]$Python)
+    if ($Settings.gan_backend -eq 'pytorch-cuda') {
+        Write-Host '正在验证 PyTorch CUDA 实际运算...'
+        Invoke-Checked $Python @('-c', "import torch; assert torch.cuda.is_available(), 'CUDA unavailable: check NVIDIA driver or select CPU'; x=torch.ones(1, device='cuda'); torch.cuda.synchronize(); print('CUDA OK:', torch.cuda.get_device_name(0), x.item())")
     }
 }
 
@@ -211,7 +226,19 @@ function Install-Frontend {
 }
 
 try {
+    if ($ChooseBackend -and $NonInteractive) { throw 'ChooseBackend and NonInteractive cannot be combined.' }
+    $hardware = Get-ComputerHardware
+    Show-ComputerHardware $hardware
     $settings = Read-DeployConfig
+    if (-not $NonInteractive -and ($ChooseBackend -or ($settings.choose_backend -and -not $SetupOnly -and -not $Plan))) {
+        $backend = Select-DeploymentBackend $hardware $settings.gan_backend
+        if ($backend -eq 'cancel') { Write-Host '已取消部署。'; exit 0 }
+        $settings.gan_backend = $backend
+        if (-not $Plan) {
+            $selectedConfig = if ($ConfigPath) { $ConfigPath } else { $DeployPaths.Config }
+            [IO.File]::WriteAllText($selectedConfig, ($settings | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+        }
+    }
     $frontend = if ($settings.install_npm) { Find-Frontend $settings } else { '' }
     $python = Resolve-Python $settings
     if ($Plan) {

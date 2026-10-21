@@ -32,7 +32,7 @@ def deployment(tmp_path, monkeypatch):
     root = tmp_path / "部署 空格"
     folder = root / "快速部署"
     folder.mkdir(parents=True)
-    for name in ("Start.ps1", "config.example.json"):
+    for name in ("Start.ps1", "Hardware.ps1", "config.example.json"):
         shutil.copyfile(PROJECT_ROOT / "快速部署" / name, folder / name)
     shutil.copyfile(PROJECT_ROOT / "一键启动.bat", root / "一键启动.bat")
     scripts = root / "scripts"
@@ -41,6 +41,7 @@ def deployment(tmp_path, monkeypatch):
         "param($PythonPath, $GANBackend, [switch]$UseExistingEnvironment)\n"
         "if (-not $UseExistingEnvironment) { exit 7 }\n"
         "[IO.File]::AppendAllText((Join-Path $PSScriptRoot 'calls.txt'), 'setup;')\n"
+        "[IO.File]::WriteAllText((Join-Path $PSScriptRoot 'backend.txt'), $GANBackend)\n"
         "exit 0\n", encoding="utf-8-sig")
     (scripts / "init_config.py").write_text("print('isolated init')", encoding="utf-8")
     (root / "requirement.txt").write_text("# fixture", encoding="utf-8")
@@ -58,12 +59,12 @@ def deployment(tmp_path, monkeypatch):
     return root, config
 
 
-def run_deploy(root: Path, *args: str) -> subprocess.CompletedProcess:
+def run_deploy(root: Path, *args: str, input_text: str | None = None) -> subprocess.CompletedProcess:
     """运行真实 PowerShell 5.1 入口并收集结果；由部署用例调用。"""
     return subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
                            "-File", str(root / "快速部署/Start.ps1"), *args],
                           cwd=root, capture_output=True, encoding="utf-8", errors="replace",
-                          timeout=90, creationflags=subprocess.CREATE_NO_WINDOW)
+                          input=input_text, timeout=90, creationflags=subprocess.CREATE_NO_WINDOW)
 
 
 def test_existing_interpreter_reuse_and_dependency_change(deployment):
@@ -96,6 +97,48 @@ def test_bat_handles_chinese_space_path_and_propagates_failure(deployment):
     bad = subprocess.run(command, input="", capture_output=True, encoding="utf-8", errors="replace",
                          timeout=20, creationflags=subprocess.CREATE_NO_WINDOW)
     assert bad.returncode == 1
+
+
+@pytest.mark.parametrize("answer, backend", [("1\n", "pytorch"), ("4\n1\n", "tensorflow"),
+                                           ("4\n2\n", "auto"), ("4\n3\n", "none")])
+def test_terminal_backend_choice_is_used_and_remembered(deployment, answer, backend):
+    """真实菜单输入贯穿安装器参数与本地配置，不安装真实框架。"""
+    root, config = deployment
+    result = run_deploy(root, "-ChooseBackend", "-SetupOnly", input_text=answer)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.index("当前电脑配置") < result.stdout.index("请选择本次部署")
+    assert (root / "scripts/backend.txt").read_text() == backend
+    assert json.loads(config.read_text())["gan_backend"] == backend
+
+
+def test_cancel_menu_does_not_install(deployment):
+    """用户取消时不运行安装器。"""
+    root, _ = deployment
+    result = run_deploy(root, "-ChooseBackend", "-SetupOnly", input_text="0\n")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not (root / "scripts/calls.txt").exists()
+
+
+@pytest.mark.parametrize("gpu, answer, expected", [
+    (False, "2\n1\n", "pytorch"),
+    (False, "3\n", "pytorch"),
+    (True, "3\n", "pytorch-cuda"),
+    (True, "2\n", "pytorch-cuda"),
+])
+def test_menu_hardware_branches(deployment, gpu, answer, expected):
+    """合成硬件验证无 GPU 拒绝、自动分支与显式 GPU 选择。"""
+    root, _ = deployment
+    entry = root / "menu.ps1"
+    entry.write_text(
+        ". (Join-Path $PSScriptRoot '快速部署/Hardware.ps1')\n"
+        f"$hardware = [pscustomobject]@{{ NvidiaReady = ${str(gpu).lower()} }}\n"
+        "$selected = Select-DeploymentBackend $hardware 'auto'\n"
+        "Write-Host ('SELECTED=' + $selected)\n", encoding="utf-8-sig")
+    result = subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(entry)],
+                            input=answer, capture_output=True, encoding="utf-8", errors="replace",
+                            timeout=15, creationflags=subprocess.CREATE_NO_WINDOW)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f"SELECTED={expected}" in result.stdout
 
 
 @pytest.mark.parametrize("change, message", [
