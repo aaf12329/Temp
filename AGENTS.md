@@ -1,5 +1,17 @@
 # 项目入口
 
+2026-10-22 双抽取路径：所有者要求采集后分PDF式确定性与原LLM自动两条路径，前后端都改、output分层，并用26个公报网址实测。新增CLIConfig.extraction(mode=llm|deterministic, rules[])与app/pipeline/deterministic.py：规则按配置正则逐份正文取唯一值，本地核对唯一年度标题、发布时间与单位；未配置规则时用本地规则且不调用清洗LLM。CLI --extraction覆盖，网页PipelineRequest.extraction由LiveResearch选择；结果分层output/cli/<mode>与output/web/<mode>/<run_id>。LLM路径修复：scope对象/null review_reason归一、同文档block_id重挂、统计公报标题地域回填、变动量与分品种不参与冲突、发布日月份不再当季度；最终助手最多32个来源并按来源均分证据额度。真实26网址：deterministic 26候选→26连续年度→XGBoost exploratory_model（12/4/4，测试MAE约1.057亿吨，不敌末值1726万）；llm清洗后25条→2001—2025连续→XGBoost exploratory_model（11/4/4，测试MAE约1.043亿吨，不敌末值）；两条路径均未声称预测可靠。完整pytest 142通过/1跳过，前端类型与10测试通过，Ruff通过。未提交推送。交接与遗留问题见docs/交接_20261022_双抽取路径.md。
+
+2026-10-22 12:33—12:34所有者明确要求从网址开始做一次真实全流程测试：使用26个全国粮食年度来源、根配置0.50阈值、既有deepseek-flash API，正式CLI85.02秒返回data_only。26项全部被非公网DNS闸门拒绝，www.cee.edu.cn解析198.18.0.54，正文/候选/年度行均0；清洗no_input且API批次0，最终趋势真实API成功并报告数据不足（1096 tokens），没有触发WGAN/XGBoost。独立产物output/real-source-tests/20261022-full-pipeline-123307；未改DNS/代理或守卫、未降低门槛、未重复第二轮、未提交推送。详见docs/真实全流程测试_20261022.md。
+
+2026-10-22资料融合：所有者授权吸收PDF有用内容，0子代理，未改独立原爬虫。平台IntegratedCrawler晋升HTML时调用纯html_metadata补明确的发布时间/唯一h1，原字节与正文坐标不变，审计在meta.source_extraction。data_quality纯统计由workflow统一编排，地址簿登记data_quality.json/fields.csv/PNG；网页DataQualityPanel和CLI报告展示原始/整理后/可用候选及字段缺失、格式异常、重复计数。没有新增依赖、填造观测或改变模型门槛。详情docs/资料融合与数据质量.md；此授权不含提交推送。
+
+资料融合验收：针对性42通过，完整Python137通过/1跳过（102.80秒），前端类型及10测试通过，受影响11个Python文件Ruff通过，质量PNG有/无候选两种已视觉核对。没有真实网站/付费模型调用、生产构建、浏览器页面视觉验收、服务重启或git提交推送。旧output没有重算。
+
+2026-10-22最新所有者确认：采集→扩大向量/关键词匹配→先落盘CSV→LLM清洗→原有缺失/建模体系。此前“仅最后API”的限制被此次要求替代。默认向量阈值0.50，清洗读llm_input.csv，IntegratedAdvisor.clean_records分批无记忆调用既有模型，LLM返回JSON再本地核对原文、数字及单位。pipeline_llm是显式聚合层，凭据不进入离线子进程；cli-finalize在无密钥子进程重建cleaned/review/series并重算原有缺失诊断，raw.csv不覆盖。最终analyze_trend仍独立无记忆、只说发展趋势。样本门槛、5倍GAN、5000轮及两次用户选择不改。本轮0子代理（同一调用链与合同，不宜并行）；未获新的提交/推送授权。详情docs/CSV后LLM清洗.md。
+
+该接线本轮完整pytest：128通过/1跳过（107.31秒），前端类型检查及10测试通过，受影响13个Python文件Ruff通过。首次子集暴露API关闭时摘要覆盖完整analysis的问题，已修复并加入保留facts/series断言。无真实网页/付费模型验收，无服务重启与提交推送。旧输出未重算。
+
 本轮最终检查更新：完整主项目pytest为111通过/1跳过（98.89秒），前端10测试及类型检查通过，15个受影响Python文件AST和Ruff通过。首次全量发现tests/test_deployment.py的中文路径探针输出不是UTF-8，已给该探针加-X utf8和退出码断言，完整重跑通过；正式Start.ps1本来已设置PYTHONUTF8=1。36通过/1跳过是先执行的针对性子集，不与完整数量相加。本轮未做生产构建、浏览器视觉或新的真实LLM请求；真实26网址仍为DNS阻断而非建模成功。当前授权仅用于本轮提交并推送一次。
 
 2026-10-22当前授权及验证：用户已明确“你去跑测试”，随后要求桌面测试集并授权本轮commit/push一次，覆盖以下旧暂停要求；仅用于包含本记录的当前提交，后续不得延用。桌面数学建模测试集已经整理，公开链接及无密钥配置归档examples/research_sources。针对修复回归36通过/1跳过（Windows符号链接权限），前端类型与10项交互测试通过，修改Python Ruff通过。真实26公报任务在output/real-source-tests/20261022-grain-104504，81.383秒、26项全部被非公网DNS闸门阻断，正文/年度行/模型均0；www.cee.edu.cn解析198.18.0.22且Clash进程运行。未调用真实LLM或降低门槛，未改代理；不能声称真实建模成功。详见docs/验证记录_20261022.md。桌面资料及本机产物不作为自动化夹具，自动化继续使用临时合成数据。

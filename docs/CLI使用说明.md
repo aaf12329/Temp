@@ -1,6 +1,6 @@
 # CLI 使用说明
 
-此CLI入口不启网页或数据库；主项目另有已接线的网页入口。检索与XGBoost使用本地CPU；GAN保持原仓库训练/图形参数，生成量按最新规则固定真实训练集×5。除了最终助手，处理都在本机进行。所有者2026-10-22已恢复本轮测试；真实26网址执行被本机DNS闸门阻断，尚未取得真实模型。检查范围见[验证记录](验证记录_20261022.md)。
+此CLI入口不启网页或数据库；主项目另有已接线的网页入口。检索与XGBoost使用本地CPU；GAN保持原训练/图形参数，生成量固定真实训练集×5。最新顺序为“采集→扩大匹配→先写CSV→LLM清洗→原有缺失/建模→最终趋势”。中间清洗与最终趋势可调用API，其余模型本地运行。真实26网址测试曾被本机DNS闸门阻断，尚未取得真实全流程模型。最新接线与检查见[CSV后LLM清洗](CSV后LLM清洗.md)。
 
 ## 启动与输入
 
@@ -34,7 +34,7 @@
 
 Setup 的 init 步骤是保留的主服务安装过程，会准备服务数据库；CLI 自身不打开或使用它。纯 CLI 已有根环境时，可安装根依赖/主包/助手包及选定的 requirements/gan-*.txt，无需执行服务 init。model-setup 只下载固定版本向量权重；日常检索不联网请求向量服务。
 
-根 .env 配置 INDUSTRY_ADVISOR_API_KEY、INDUSTRY_ADVISOR_BASE_URL、INDUSTRY_ADVISOR_MODEL。程序只在最后一步使用这些设置，终端打印模型名称，不打印 key。默认 llm=api；未配置或 API 失败时保留 CSV、指标和本地状态说明，明确标记没有获得 LLM 总结，不冒充成功。llm=off 可只导出本地结果，demo 是显式演示输出。
+根.env配置INDUSTRY_ADVISOR_API_KEY、INDUSTRY_ADVISOR_BASE_URL、INDUSTRY_ADVISOR_MODEL。中间CSV清洗与最后趋势分析共用这些设置，分别独立请求，终端打印模型名称，不打印key。默认llm=api；llm_cleaning.mode=off可单独关闭中间API，llm=off关闭两阶段API；demo只演示最终输出，中间仍用本地规则。缺密钥或失败保留原CSV和明确状态，不冒充清洗成功。
 
 最终LLM走analyze_trend单次入口：本轮证据和模型摘要一次提交，禁用重试，不读取或保存会话、人工记忆和聊天摘要。只输出发展趋势；不足以判断时直说，避免行动建议与追问。metadata/llm.json保留本轮结果及memory_enabled=false，这属于结果存档，不用于下一次模型上下文。
 
@@ -46,7 +46,9 @@ Setup 的 init 步骤是保留的主服务安装过程，会准备服务数据�
   → stage_records：隔离只读副本 + 原始相对引用映射
   → workflow.analyze
        load_corpus → Encoder/score_passages → extract_facts
-       → 规则排除及逐条理由 → 缺失诊断 → 自动同口径年度行
+       → information.csv / raw.csv / llm_input.csv先落盘
+  → clean_csv → 分批独立LLM清洗 → 本地原文/数字/单位检查
+  → workflow.finalize → cleaned.csv / review.csv → 原有缺失诊断与同口径年度行
   → 信息整理完成
   → workflow.model(plan)：时间切分 + 门槛检查，不提前拟合XGBoost或GAN
        数据不够 → data_only → API助手
@@ -56,24 +58,47 @@ Setup 的 init 步骤是保留的主服务安装过程，会准备服务数据�
        → 用户再选是否采用（默认0）；不采用则仅真实数据继续
   → XGBoost对比真实/所选增强方案，真实验证未改善则回退；不重新生成GAN数据
   → 真实测试评估 + 可选未来探索预测 + PNG
-  → summarize：匹配原文摘录 + 实际指标/缺口 → API助手 → output/cli/report.md
+  → summarize：匹配原文摘录 + 实际指标/缺口 → API助手 → output/cli/<路径>/report.md
 ```
 
 终端逐网址打印 HTTP、类型、成功/跳过及原因；例如 robots 禁止、登录墙、拦截、未支持的动态网页或扫描 PDF。已有 data/policy/site_policy.json 限制优先；无该主机记录时，用户输入的单页路径作为本轮允许声明，仍不绕过任何 robots、登录和访问限制。程序不能凭自动检查证明法律许可。
 
 清洗逐项原因和完整来源另写 CSV/JSON。控制台显示前十条候选排除理由，其他见 rejected.csv。只支持当前静态 HTML 与文本 PDF；不存在“任何网站都能解析”的承诺。
 
+## 两条抽取路径
+
+配置中的 `extraction.mode` 决定 CSV 落盘后的整理方式，两条路径共用后续的缺失诊断、年度序列、门槛与 XGBoost：
+
+| 路径 | 实现 | 适用 | 结果目录 |
+| --- | --- | --- | --- |
+| `deterministic`（手动/规则） | 按 `extraction.rules` 的正则逐份正文取唯一数值，本地核对年份、发布时间与单位；不调用清洗 LLM | 版式固定的年度公报，数字位置稳定 | `output/cli/deterministic` |
+| `llm`（自动，原路径） | 本地规则召回 → 落盘 CSV → LLM 分批清洗 → 本地原文/数字校验 | 版式不固定、表述有歧义的材料 | `output/cli/llm` |
+
+示例规则（见 `config/research-grain.json`）：
+
+```json
+"extraction": {
+  "mode": "deterministic",
+  "rules": [{"subject": "粮食", "metric": "production", "region": "全国",
+             "pattern": "粮食产量\\s*(\\d{4,6})\\s*万吨", "unit": "万吨"}]
+}
+```
+
+规则正则必须且只能有一个捕获组；同一正文命中多个不同数值时不自动选取。未配置规则时，`deterministic` 仍使用本地规则且不调用 LLM 清洗。CLI 可用 `--extraction llm|deterministic` 临时覆盖配置。网页在提交前选择“自动：LLM 清洗”或“手动：配置规则确定性抽取”，任务目录按 `output/web/<mode>/<run_id>` 分层。
+
+LLM 路径的字段归一、同文档 block_id 重挂、年度公报标题地域回填与变动量排除由本地校验完成；模型返回的 scope 对象和空 review_reason 会先归一，但原文数字和单位仍严格核对。实现细节、实测数据和遗留问题见[交接文档](交接_20261022_双抽取路径.md)。
+
 ## 模型与预算
 
 | 用途 | 实际模型/实现 | 默认运行方式 |
 | --- | --- | --- |
 | 中文向量检索 | BGE-small-zh-v1.5 的固定版本 INT8 ONNX，24 MB 左右权重 | CPU，2线程，batch 8，最长256 tokens |
-| 数字抽取与基本清洗 | 本地证据规则，保留原文坐标与单位 | 不调用语言模型 |
+| 初步提取与清洗 | 先本地规则提取写CSV，再LLM整理口径、本地原文校验 | 根.env选择的API；关闭时保留本地规则 |
 | 训练异常标记 | IsolationForest，100棵树 | 至少64条真实训练样本才拟合；默认只标记，不把异常等同错误 |
 | 缺失诊断 | WGAN_Trainer 的 pandas/pyampute/SciPy | 只诊断，不伪造缺年/目标标签 |
 | 可选增强 | WGAN-GP，PyTorch 或 TensorFlow | config/wgan.json 原参数：5000轮、原网络、device=auto |
 | 年度预测 | XGBoost 3.1.1，120棵树，深度2 | CPU，2线程，无自动超参搜索 |
-| 文字结论与建议 | 根 .env 选择的 API 语言模型 | 只在最后调用 |
+| 最终发展趋势 | 根.env选择的API语言模型 | 最后单独无记忆请求，只说趋势 |
 
 默认最多100网址、16 MB规范化正文、2000段落、10000数值候选、3条年度序列。截断和跳过会记录。普通本地分析阶段默认最长1200秒；GAN正式建模阶段默认不设超时（gan.timeout_s=null），不强制屏蔽GPU或限定线程。Ctrl+C会停止解释器子树。预算是工程限制，不能保证任意网页/任意数据都在固定耗时内完成。
 
@@ -90,13 +115,17 @@ charts沿用原JSON：standard、tsne_perplexity=null（原默认30，小样本�
 
 ## 输出与覆盖
 
-每轮覆盖 output/cli 中程序登记的上轮文件；旧模型/旧图在新一轮没有模型时也会清掉，避免误认。用户自建文件保留，不递归删除目录，也不影响 output/web 的网页结果。输入网址 TXT 不会被改写。旧版根 output 平铺文件保留，未自动搬动；新结构见 [结果说明](../output/README.md)。
+每轮覆盖 output/cli/<llm|deterministic> 中程序登记的上轮文件；旧模型/旧图在新一轮没有模型时也会清掉，避免误认。不同抽取路径互不覆盖。用户自建文件保留，不递归删除目录，也不影响 output/web 的网页结果。输入网址 TXT 不会被改写。旧版根 output 平铺文件保留，未自动搬动；新结构见 [结果说明](../output/README.md)。
+
+下表路径均相对于 `output/cli/<llm|deterministic>/`；确定性路径的 `llm_input.csv` 只有表头，`metadata/analysis.json` 的 `extraction` 记录规则数量与未采纳项。
 
 | 文件 | 内容 |
 | --- | --- |
 | report.md / metadata/llm.json | 最终报告、API状态和建议 |
 | data/information.csv | 与需求匹配的原文片段、来源、坐标、向量分数 |
 | data/raw.csv / data/candidates.csv | 原始数值候选，未人工批准 |
+| data/llm_input.csv / data/review.csv | 已落盘清洗输入、有疑问/无效/未处理记录 |
+| metadata/llm_cleaning.json / metadata/extraction_context.json | 清洗批次审计及本地字段/单位定义 |
 | data/cleaned.csv / data/rejected.csv | 可比候选与完整排除理由 |
 | metadata/access.json / metadata/materials.json | 各网址处理状态与来源文件引用 |
 | metadata/missing.json / charts/missing.png | 缺失诊断与图表；没有数值时不伪造图表 |

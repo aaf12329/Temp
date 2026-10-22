@@ -17,11 +17,11 @@ from app.common.paths import CRAWLER_SOURCE, WGAN_SOURCE
 def execute(message: dict) -> dict:
     """装配组件运行边界；由 main 或离线桥接测试调用。"""
     sys.path.insert(0, str(CRAWLER_SOURCE))
-    if message["action"] in {"cli-analyze", "cli-model"}:
+    if message["action"] in {"cli-analyze", "cli-finalize", "cli-model"}:
         sys.path.insert(0, str(WGAN_SOURCE))
-        from app.pipeline.workflow import analyze, model
+        from app.pipeline.workflow import analyze, finalize, model
 
-        action = analyze if message["action"] == "cli-analyze" else model
+        action = {"cli-analyze": analyze, "cli-finalize": finalize, "cli-model": model}[message["action"]]
         try:
             return {"data": action(message), "error": None}
         except (ValueError, ImportError) as exc:

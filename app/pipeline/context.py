@@ -47,7 +47,9 @@ def _complete(fact, document, settings):
     text = document["text"]
     # 只查看紧邻上文；跨段出现限制词时宁可待审核，不把局部口径升格为全行业。
     context_start = max(0, start - 240)
-    preceding = text[context_start:start]
+    # 口径限制只看上一个句号以来的文字；上一段的“规模以上工业”不能污染粮食产量。
+    boundary = text.rfind("。", context_start, start)
+    same_sentence = text[boundary + 1:start]
     references = row["context_evidence"]
 
     def record(field, value, kind, quote, **offsets):
@@ -103,24 +105,34 @@ def _complete(fact, document, settings):
     if re.search(restriction_pattern, title):
         flags.add("qualified_scope_requires_review")
         record("scope", "qualified_scope_requires_review", "title_scope_restriction", title)
-    if re.search(restriction_pattern, preceding + excerpt):
+    if re.search(restriction_pattern, same_sentence + excerpt):
         flags.add("qualified_scope_requires_review")
-        record("scope", "qualified_scope_requires_review", "scope_restriction", text[context_start:end],
-               char_start=context_start, char_end=end)
-    if re.search(r"公司|集团|合作社|该企业|某企业", preceding + excerpt):
+        record("scope", "qualified_scope_requires_review", "scope_restriction", same_sentence + excerpt,
+               char_start=context_start + boundary + 1, char_end=end)
+    if re.search(r"公司|集团|合作社|该企业|某企业", same_sentence + excerpt):
         flags.add("enterprise_scope_requires_review")
-    if preceding and _nonannual(preceding):
+    if same_sentence and _nonannual(same_sentence):
         flags.add("context_period_requires_review")
-        record("period_type", "context_period_requires_review", "preceding_context", preceding,
-               char_start=context_start, char_end=start)
+        record("period_type", "context_period_requires_review", "preceding_context", same_sentence,
+               char_start=context_start + boundary + 1, char_end=start)
     claim_pattern = r"目标|规划|计划|预计|预测|有望|力争"
     if re.search(claim_pattern, title):
         flags.add("context_claim_requires_review")
         record("claim_type", "context_claim_requires_review", "title_claim_restriction", title)
-    if re.search(claim_pattern, preceding):
+    if re.search(claim_pattern, same_sentence):
         flags.add("context_claim_requires_review")
-        record("claim_type", "context_claim_requires_review", "claim_restriction", preceding,
-               char_start=context_start, char_end=start)
+        record("claim_type", "context_claim_requires_review", "claim_restriction", same_sentence,
+               char_start=context_start + boundary + 1, char_end=start)
+    # 数值紧前的“X产量”才是该数字的指标；粮食主体不能跨到肉类、稻谷等分品种。
+    if row.get("subject") and row.get("metric") == "production":
+        number_start = row.get("number_char_start", start)
+        label_zone = text[max(0, number_start - 48):number_start]
+        labels = re.findall(r"([\u4e00-\u9fff]{2,14}产量)\s*$", label_zone)
+        if labels:
+            aliases = settings["subjects"].get(row["subject"], [row["subject"]])
+            if not any(alias in labels[-1] for alias in aliases):
+                flags.add("subject_metric_mismatch")
+                row["subject"] = None
     row["uncertainty_flags"] = sorted(flags)
     if references:
         # 口径补全后的标识包含原候选及证据，仍是机器候选，不修改原文、数值和审核状态。

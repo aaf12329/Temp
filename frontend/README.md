@@ -2,7 +2,7 @@
 
 主项目已在代码层接通 React/Next.js → FastAPI → 持久Worker → Python研究管线。首页默认“实际研究”，顶部可切换“设计预览（合成演示）”。不做登录、注册或用户中心；两种模式的数据与状态分开。最终视觉设计由人类负责。
 
-React/Next.js frontend with a local FastAPI/worker connection. The actual workflow and synthetic design preview are separate. Backend credentials stay in Node; only the final language assistant may use an external API.
+React/Next.js frontend with a local FastAPI/worker connection. The actual workflow and synthetic design preview are separate. Credentials stay server-side. After collection, users select a deterministic rule path (no cleaning LLM) or the original stateless LLM cleaning path; final trend analysis is a separate stateless LLM API stage.
 
 ## 启动
 
@@ -19,8 +19,12 @@ React/Next.js frontend with a local FastAPI/worker connection. The actual workfl
 ## 实际流程
 
 ```text
-TXT本地读取（最多1MB/100个去重HTTP(S)网址）+ 一句话需求
+TXT本地读取（最多1MB/100个去重HTTP(S)网址）+ 一句话需求 + 抽取路径
  → Next同源接口 → FastAPI提交prepare操作 → Worker采集/整理/查门槛
+      → 扩大向量/关键词匹配 → 先写CSV
+         ├─ deterministic：配置正则逐份取唯一值 → 本地核对年份/发布时间/单位
+         └─ llm：分批无记忆LLM清洗 → 本地原文/数字校验
+      → 缺失诊断/年度序列/查门槛
  ├─ 不足 → CSV + 原因 + 最终分析/状态报告
  └─ 达到条件 → 用户选择
       ├─ 不训练GAN → model操作 → XGBoost
@@ -30,6 +34,8 @@ TXT本地读取（最多1MB/100个去重HTTP(S)网址）+ 一句话需求
            → model操作 → XGBoost
  → 真实测试指标/实际PNG/CSV → 最终LLM（可关闭）→ 报告
 ```
+
+提交前的“数据抽取路径”选择会写入任务请求；结果页显示本轮路径，确定性路径还显示规则数量和未采纳项。网页任务目录按`output/web/<路径>/<令牌>`分层，GAN/建模阶段沿用父任务路径。
 
 GAN还有独立的真实训练样本门槛，达到XGBoost门槛不意味着一定可以用GAN。生成数量只按真实训练集计算，验证/测试完全隔离。确认后读取同一批带哈希的生成文件，不重训GAN。采用后真实验证未改善时回退真实数据模型，页面会说明。
 
@@ -44,6 +50,8 @@ GAN还有独立的真实训练样本门槛，达到XGBoost门槛不意味着一�
 实际运行消息由ResearchMessages展示：每个网址的真实开始和结果带“当前序号/总网址数”，失败保留具体原因。LiveResearch每1.5秒查询任务进度；滚动查看历史时不强制跳到底部，完成或失败后仍保留。消息来源为Worker受令牌保护的持久快照，恢复任务编号可继续查看；没有伪造训练进度。后端更新需正常重启API/Worker后再提交新任务。
 
 最终“发展趋势”区域只显示本轮单次LLM趋势结论，不渲染整份技术状态报告。最终调用不读取或写入聊天、人工记忆、对话摘要，不输出追问或行动建议；数据不足则说明无法判断。完整数据、模型图表与report.md仍可下载。独立终端聊天及旧建议接口的记忆功能不属于这个最终研究调用。
+
+实际结果另有“清洗前后数据核对”：列出规则候选、整理候选、可用候选、待复核记录和年度行，并可展开查看七个字段的缺失/格式异常。质量PNG和CSV可下载；这些是数据处理统计，不是模型可信度评分。没有候选时明确显示无候选，不显示伪造的完整率。
 
 ## 设计组独立目录
 

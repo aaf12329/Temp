@@ -21,6 +21,15 @@ REASONS = {
     "inherited_metric": "指标跨分句继承，需要复核",
     "bounded_or_approximate": "约数或上下界不能当精确观测",
     "ambiguous_subject": "同句存在多个产业主体", "ambiguous_region": "同句存在多个地域",
+    "llm_metric_unverified": "LLM指标缺少可核对的原文名称",
+    "llm_unit_unverified": "LLM单位缺少原文支持",
+    "llm_unit_dimension_mismatch": "指标与单位维度不一致",
+    "llm_scope_requires_review": "LLM识别为局部或不明统计范围",
+    "llm_scope_unverified": "LLM统计范围引句未通过原文校验",
+    "llm_requested_review": "LLM标记需要人工复核",
+    "llm_not_selected": "该批清洗未将此规则候选选为相关明确观测，保留待复核",
+    "price_basis_requires_review": "价格口径需要复核，不能混用现价和不变价",
+    "publication_before_period_end": "发布时间早于年度结束，需核对测量期",
 }
 
 

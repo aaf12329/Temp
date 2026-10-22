@@ -25,6 +25,7 @@ class PipelineRequest(BaseModel):
     use_generated: bool = False
     llm: Literal["api", "off", "demo"] = "api"
     retrieval: Literal["bge-small-zh-v1.5-int8", "keywords"] = "bge-small-zh-v1.5-int8"
+    extraction: Literal["llm", "deterministic"] = "llm"
 
     @model_validator(mode="after")
     def valid_stage(self):

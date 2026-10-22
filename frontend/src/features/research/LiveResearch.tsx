@@ -22,6 +22,7 @@ export function LiveResearch() {
   const [submitting, setSubmitting] = useState(false);
   const [framework, setFramework] = useState<"pytorch" | "tensorflow">("pytorch");
   const [llm, setLlm] = useState("api");
+  const [extraction, setExtraction] = useState<"llm" | "deterministic">("llm");
   const [restore, setRestore] = useState("");
   const [pending, setPending] = useState<Record<string, unknown> | null>(null);
   const busy = submitting || active !== null;
@@ -58,12 +59,16 @@ export function LiveResearch() {
     finally { setSubmitting(false); }
   }
   /** 读取真实用户输入，不访问示例网站或注入演示结果。 */
-  function start(input: ResearchInput) { void submit({ stage: "prepare", urls: input.urls, question: input.query, llm }); }
+  function start(input: ResearchInput) { void submit({ stage: "prepare", urls: input.urls, question: input.query, llm, extraction }); }
   const result = completed?.result;
   return <>
     <header><h1>产业信息研究平台</h1><p>网址清单 → 信息整理 → 可选 WGAN → XGBoost → 发展趋势</p></header>
-    <aside className="notice">实际研究模式：提交后会访问所列公开网址，受站点策略和 robots 等限制。除最终 LLM 外均在本机处理；缺失或失败会如实记录。自动抽取与预测均为未人工复核的探索结果。</aside>
-    {!result && !busy && <><label>最终分析助手 <select value={llm} onChange={(event) => setLlm(event.target.value)}><option value="api">使用已配置的 LLM API</option><option value="off">不调用 API，只输出数据与状态报告</option><option value="demo">演示助手（结果会标注演示）</option></select></label><InputPanel live onSubmit={start} onExample={() => downloadText("网址清单模板.txt", "# 每行一个完整的公开HTTP(S)网址；请填写你要研究的实际来源。\n")} /></>}
+    <aside className="notice">实际研究模式：提交后会访问所列公开网址，受站点策略和 robots 等限制。匹配内容先保存 CSV，再按所选路径整理；最终趋势另行分析。两阶段均无会话记忆，清洗前后数据保留供核对。</aside>
+    {!result && !busy && <>
+      <label>数据抽取路径 <select value={extraction} onChange={(event) => setExtraction(event.target.value as "llm" | "deterministic")}><option value="llm">自动：LLM 清洗（原路径）</option><option value="deterministic">手动：配置规则确定性抽取（PDF 式）</option></select></label>
+      <p className="muted">确定性路径按配置中的正则规则逐页取数，不调用清洗 API；版式固定的年度公报更稳。最终趋势分析仍按下方 LLM 设置执行。</p>
+      <label>最终趋势分析 / 自动路径清洗 <select value={llm} onChange={(event) => setLlm(event.target.value)}><option value="api">使用已配置的 LLM API 清洗并分析趋势</option><option value="off">不调用 API，保留本地规则与数据报告</option><option value="demo">演示最终助手，清洗使用本地规则</option></select></label>
+      <InputPanel live onSubmit={start} onExample={() => downloadText("网址清单模板.txt", "# 每行一个完整的公开HTTP(S)网址；请填写你要研究的实际来源。\n")} /></>}
     {busy && <section className="panel" aria-live="polite"><h2>正在处理实际任务</h2><p>{status || "正在提交任务"}</p><p>任务编号：<code>{active || String(pending?.operation_id || "提交中")}</code></p><p>采集和训练耗时取决于来源与配置。没有模拟进度；切换页面或关闭浏览器不会取消后台任务。</p></section>}
     {progress && <ResearchMessages progress={progress} />}
     {error && <div className="notice" role="alert"><p>{error}</p>{pending && <button disabled={busy} onClick={() => void submit(pending, true)}>重试同一提交</button>}</div>}

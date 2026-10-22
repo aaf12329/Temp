@@ -16,10 +16,23 @@ export type SeriesReport = {
   selected_model?: string; test?: { selected: ActualMetrics; real_only: ActualMetrics; naive: ActualMetrics };
   forecast?: { target_period: number; prediction: number; status: string };
 };
+export type CandidateProfile = {
+  rows: number; exact_duplicate_candidates: number; source_records: number;
+  fields: Record<string, { label: string; missing: number; invalid: number; valid: number; missing_fraction: number | null }>;
+};
+export type DataQuality = {
+  counts: Record<string, number>; before: CandidateProfile; after: CandidateProfile; usable: CandidateProfile;
+  interpretation: string; llm_status: string;
+};
 export type PipelineResult = {
-  stage: "choice" | "gan_review" | "completed"; run_id: string; context: { question: string };
+  stage: "choice" | "gan_review" | "completed"; run_id: string;
+  extraction?: "llm" | "deterministic";
+  extraction_detail?: { mode: string; method?: string; rule_count: number; issues: { code: string; message: string }[] } | null;
+  context: { question: string };
   counts: Record<string, number>; can_model: boolean; gan_available: boolean; gan_usable: boolean;
   access: { url: string; status: string; reason: string }[]; warning?: string;
+  llm_cleaning?: { status: string; model: string; reason?: string; source_validated_rows?: number; invalid_rows?: number } | null;
+  data_quality?: DataQuality | null;
   diagnostics?: { code: string; message: string; rejection_reasons: { code: string; message: string; count: number }[] } | null;
   modeling: { status: string; series_reports: SeriesReport[]; requirements: string[]; gan_gate?: { status: string; reason: string; min_real_train_samples: number; sample_definition: string } };
   files: Record<string, string>; report: string | null;

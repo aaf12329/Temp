@@ -5,6 +5,7 @@
 GAN 参数来自 WGAN_Trainer 原 JSON，不套用轻薄本性能上限；未知字段直接报错。
 """
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -79,15 +80,58 @@ class Cleaning(Strict):
     remove_training_outliers: bool = False
 
 
+class LLMCleaning(Strict):
+    """CSV落盘后的无记忆清洗预算；off仍只运行原本地规则。"""
+
+    mode: Literal["api", "off"] = "api"
+    batch_chars: int = Field(default=16000, ge=4000, le=24000)
+    max_batches: int = Field(default=32, ge=1, le=100)
+    max_blocks: int = Field(default=256, ge=1, le=1000)
+    max_output_tokens: int = Field(default=8192, ge=2048, le=8192)
+
+
+class ExtractionRule(Strict):
+    """确定性抽取规则：一份正文内按正则取唯一数值，不交给LLM判断。"""
+
+    subject: str = Field(min_length=1, max_length=100)
+    metric: str = Field(default="production", min_length=1, max_length=80)
+    region: str = Field(default="全国", min_length=1, max_length=100)
+    pattern: str = Field(min_length=1, max_length=300)
+    unit: str = Field(default="万吨", min_length=1, max_length=20)
+    period_type: Literal["year"] = "year"
+    claim_type: Literal["observation"] = "observation"
+
+    @field_validator("pattern")
+    @classmethod
+    def one_capture_group(cls, value):
+        """规则必须给出唯一捕获组，避免把整句或空串当成数值。"""
+        try:
+            compiled = re.compile(value)
+        except re.error as exc:
+            raise ValueError(f"规则正则无效：{exc}") from None
+        if compiled.groups != 1:
+            raise ValueError("规则正则必须且只能有一个捕获组。")
+        return value
+
+
+class Extraction(Strict):
+    """抽取入口分叉：llm保留原自动路径，deterministic按规则直接落CSV。"""
+
+    mode: Literal["llm", "deterministic"] = "llm"
+    rules: list[ExtractionRule] = Field(default_factory=list, max_length=50)
+
+
 class CLIConfig(Strict):
     """两次输入的 CLI 高级配置；URL、问题和输出位置不隐藏在 JSON 中。"""
 
     retrieval: Literal["bge-small-zh-v1.5-int8", "keywords"] = "bge-small-zh-v1.5-int8"
-    semantic_threshold: float = Field(default=0.64, ge=0, le=1)
+    semantic_threshold: float = Field(default=0.50, ge=0, le=1)
     subjects: list[str] | dict[str, list[str]] = Field(default_factory=list)
     regions: list[str] | dict[str, list[str]] = Field(default_factory=list)
     keywords: list[str] = Field(default_factory=list, max_length=100)
+    extraction: Extraction = Field(default_factory=Extraction)
     cleaning: Cleaning = Field(default_factory=Cleaning)
+    llm_cleaning: LLMCleaning = Field(default_factory=LLMCleaning)
     gan: GAN = Field(default_factory=GAN)
     laptop: Laptop = Field(default_factory=Laptop)
     llm: Literal["api", "off", "demo"] = "api"

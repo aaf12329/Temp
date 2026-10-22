@@ -330,3 +330,27 @@ def test_real_cpu_wgan_two_backends(tmp_path, legacy_imports, backend):
     assert tsne["plotted_synthetic"] == 320
     assert tsne["fit_scope"] == "real_training_only"
     assert "is_synthetic" in paths.file("generated").read_text("utf-8-sig").splitlines()[0]
+
+
+def test_deterministic_rule_extraction_is_auditable_and_rejects_conflicts():
+    """规则路径只接受唯一命中的数值；单位换算与年份、发布时间都由本地核对。"""
+    from app.pipeline.deterministic import extract
+
+    rule = {"subject": "粮食", "metric": "production", "region": "全国",
+            "pattern": r"粮食产量\s*(\d{4,6})\s*万吨", "unit": "万吨",
+            "period_type": "year", "claim_type": "observation"}
+    document = {"record_id": "r1", "url": "https://example.test/bulletin",
+                "title": "中华人民共和国2008年国民经济和社会发展统计公报",
+                "publisher": "", "published_at": "2009-02-26", "text_path": "x",
+                "text_sha256": "h", "duplicate_group": "g",
+                "text": "全年粮食产量 52850 万吨，比上年增加 2690 万吨。"}
+    facts, issues = extract([document], [rule], {"万吨": ("吨", "10000", "mass")},
+                            {"production": "mass"})
+    assert not issues and len(facts) == 1
+    assert facts[0]["value"] == 528500000.0 and facts[0]["unit"] == "吨"
+    assert facts[0]["period"] == 2008 and facts[0]["extraction_method"] == "deterministic_rule"
+
+    conflicting = {**document, "text": "粮食产量 52850 万吨；粮食产量 53000 万吨。"}
+    facts, issues = extract([conflicting], [rule], {"万吨": ("吨", "10000", "mass")},
+                            {"production": "mass"})
+    assert not facts and issues[0]["code"] == "rule_conflict"

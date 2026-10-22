@@ -1,6 +1,6 @@
 """真实爬虫显式适配/聚合层，不依赖业务服务。
 
-结构：IntegratedCrawler.probe/crawl_one → run_component → _promote。
+结构：IntegratedCrawler.probe/crawl_one → run_component → _promote → recover_metadata。
 调用：API/Worker → 本适配器 → 隔离旧爬虫；数据流：合同请求 → 隔离抓取 → 内容寻址材料。
 返回：Profile[] / CrawlResult；所有文件引用均限定在服务 data 根目录，不覆盖历史内容。
 """
@@ -14,6 +14,7 @@ from app.common.file_io import read_bytes, write_bytes
 from app.common.paths import DataPaths
 from app.contracts.crawler import CrawlResult, Profile
 from app.core.errors import ServiceError
+from app.crawler.html_metadata import recover_metadata
 
 
 class IntegratedCrawler:
@@ -69,6 +70,14 @@ class IntegratedCrawler:
             if not source.is_relative_to((workspace / "data").resolve()) or not source.is_file():
                 raise ServiceError("E_ADAPTER_PATH", "爬虫产物引用越界或缺失。", 500)
             content = read_bytes(source)
+            if category == "raw/html" and record.get("status") == "ok":
+                fields, audit = recover_metadata(content, record.get("encoding"),
+                                                 record.get("source") or {}, record.get("title"))
+                if "published_at" in fields:
+                    record.setdefault("source", {})["published_at"] = fields["published_at"]
+                if "title" in fields:
+                    record["title"] = fields["title"]
+                record.setdefault("meta", {})["source_extraction"] = audit
             digest = hashlib.sha256(content).hexdigest()
             target = self.paths.artifact_path(category, record["record_id"], digest, source.suffix)
             if not target.resolve().is_relative_to(self.paths.root.resolve()):

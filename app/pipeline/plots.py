@@ -1,7 +1,7 @@
 """离线图表功能，不导入其他业务模块。
 
-结构：missing_plot / evaluation / gan_plot；调用：聚合入口 → 本模块 → matplotlib。
-数据流：真实留出预测/训练损失 → navy/pink 图表 → 共用 I/O PNG。
+结构：missing_plot / data_quality_plot / evaluation / gan_plot；调用：聚合入口 → matplotlib。
+数据流：实际质量计数/真实留出预测/训练损失 → navy/pink 图表 → 共用 I/O PNG。
 图表参考 WGAN_Boost_Xgboost 的实际值/预测值、残差及重要性布局，所有图来自实际计算。
 """
 
@@ -30,6 +30,42 @@ def missing_plot(frame, destination):
     axis.set(ylim=(0, 1), ylabel="Missing fraction", title="Observed training data quality")
     axis.set_xticks(np.arange(len(frame.columns)), labels=list(frame.columns), rotation=35, ha="right")
     figure.tight_layout()
+    save_figure(destination, figure)
+    plt.close(figure)
+
+
+def data_quality_plot(report, destination):
+    """展示真实阶段计数与字段缺失率，空集合不生成虚假的完整率或模型性能。"""
+    plt = _pyplot()
+    figure, axes = plt.subplots(1, 2, figsize=(13, 4.8))
+    names = ["raw_candidates", "organized_candidates", "usable_candidates", "review_records", "annual_rows"]
+    labels = ["Raw rule\ncandidates", "Organized\ncandidates", "Usable\ncandidates", "Review\nrecords", "Annual\nrows"]
+    values = [report["counts"][key] for key in names]
+    axes[0].bar(labels, values, color=["#8698af", "#223c64", "#4f8777", "#df779c", "#223c64"])
+    axes[0].set(title="Actual record counts by stage", ylabel="Records", ylim=(0, max(values + [1]) * 1.18))
+    for index, value in enumerate(values):
+        axes[0].text(index, value, str(value), ha="center", va="bottom")
+    fields = list(report["before"]["fields"])
+    index = np.arange(len(fields))
+    has_rows = False
+    for offset, (stage, label, color) in enumerate([
+        ("before", "Before", "#8698af"), ("after", "Organized", "#223c64"),
+        ("usable", "Usable", "#df779c")]):
+        size = report[stage]["rows"]
+        if size:
+            rates = [report[stage]["fields"][field]["missing_fraction"] for field in fields]
+            axes[1].bar(index + (offset - 1) * 0.24, rates, width=0.24, color=color,
+                        label=f"{label} (n={size})")
+            has_rows = True
+    axes[1].set(title="Missing fields (each stage has its own denominator)", ylabel="Missing fraction", ylim=(0, 1.08))
+    axes[1].set_xticks(index, labels=fields, rotation=30, ha="right")
+    if has_rows:
+        axes[1].legend(fontsize=8)
+    else:
+        axes[1].text(0.5, 0.5, "No candidate rows to profile", ha="center", transform=axes[1].transAxes)
+    figure.text(0.5, 0.015, "Completeness is not factual accuracy. Organized candidates are not new observations.",
+                ha="center", fontsize=9)
+    figure.tight_layout(rect=(0, 0.055, 1, 1))
     save_figure(destination, figure)
     plt.close(figure)
 

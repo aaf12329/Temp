@@ -1,5 +1,9 @@
 # 前端入口
 
+2026-10-22资料融合：DataQualityPanel为只接props的数据质量叶子，LiveResults注入实际data_quality。按不同阶段各自分母显示缺失与格式异常，空集显示无候选；data_quality.png是处理统计图，不是模型性能图。桌面设计包未修改。
+
+2026-10-22最新：主项目实际模式使用“LLM数据清洗与趋势分析”选项，同时控制两阶段API。CSV先落盘，中间分批清洗，最终单独趋势请求；LiveResults显示llm_cleaning实际状态。不要再宣称只有最终阶段远程调用。桌面设计交接包未同步此次主项目更改。
+
 先读../AGENTS.md、README.md、Agent.md。所有者已授权总装，主项目包含实际研究与设计预览两种模式；桌面独立设计交接包继续不接后端。
 
 ResearchWorkspace、LiveResearch、ResearchPrototype是显式聚合层。共用契约在src/types，流程及浏览器I/O在src/lib，共用SVG在src/components，Node代理及地址簿在src/server。组件只接props与回调。主项目可以通过统一platform-client接同源接口，功能页不横向操作其他页面。

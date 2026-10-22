@@ -89,3 +89,32 @@ def test_manual_gan_stages_and_immutable_parent(client, monkeypatch, legacy_impo
     parent_review = read_json(source.series(__import__("hashlib").sha256(b"synthetic").hexdigest()[:12]).file("gan_review"))
     assert not parent_review["gan"].get("user_accepted", False)
     assert client.post("/v1/pipeline/jobs", json={"operation_id": "wrong-project", "project_id": "other", "stage": "model", "parent_id": "gan"}).status_code == 404
+
+
+def test_deterministic_mode_skips_cleaning_and_layers_run_output(client, monkeypatch, legacy_imports):
+    """确定性路径不调用清洗入口，任务目录按 deterministic 分层。"""
+    from pathlib import Path
+
+    from app import pipeline_service
+    from app.common.file_io import write_csv_rows
+    from app.pipeline import workflow
+
+    def offline(payload, *args, **kwargs):
+        """只替换分析产物，模型阶段仍走生产代码。"""
+        if payload["action"] == "cli-analyze":
+            value = {"counts": {"documents": 1, "selected_passages": 0, "candidate_facts": 0,
+                                "series_rows": 0}, "series": [], "facts": [],
+                     "warning": "SYNTHETIC TEST ONLY"}
+            paths = PipelinePaths(Path(payload["output"]), organized=payload.get("output_layout", False))
+            write_json(paths.file("analysis"), value)
+            write_csv_rows(paths.file("information"), [], ["record_id", "text"])
+            return value
+        return workflow.model(payload)
+
+    monkeypatch.setattr(pipeline_service, "run_component", offline)
+    result = submit_and_run(client, {"operation_id": "det-mode", "stage": "prepare",
+        "urls": ["https://example.test/a"], "question": "示例数量", "retrieval": "keywords",
+        "llm": "off", "extraction": "deterministic"})
+    assert result["extraction"] == "deterministic"
+    assert result["run_id"].startswith("deterministic/")
+    assert result["llm_cleaning"]["status"] == "disabled"

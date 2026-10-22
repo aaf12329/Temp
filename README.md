@@ -13,29 +13,35 @@
 | IsolationForest | 条件满足时标记训练异常；默认不自动删除 | 本地CPU |
 | WGAN-GP（PyTorch / TensorFlow） | 用户先选择才训练，生成数量=真实训练集×5，生成后再次确认采用 | 本地，设备沿用JSON |
 | XGBoost | 同口径年度数据的回归预测与独立真实测试评估 | 本地CPU |
-| 规则、pandas / SciPy / pyampute | 数值抽取、单位检查、去重、清洗及缺失诊断 | 本地 |
+| 规则、pandas / SciPy / pyampute | 初步提取、本地原文校验、单位换算、去重及缺失诊断 | 本地 |
 | t-SNE / XGBoost原生TreeSHAP | 分布可视化与模型解释；不等于质量或因果证明 | 本地 |
-| 外部LLM API | 单次读取本轮证据和模型结果，只输出发展趋势，不读写会话记忆；缺少密钥仍导出数据报告 | 远程API |
+| 外部LLM API | LLM路径读取已落盘CSV分批结构化清洗，最后独立请求发展趋势；确定性路径跳过清洗，只保留最终趋势请求；均无会话记忆，失败保留CSV | 远程API |
 
 Windows复用既有SQLite持久队列；Linux Celery/Redis/PostgreSQL配置仍保留，尚未做真实部署验收。只有CLI不使用SQL；网页研究产物仍是CSV/JSON/PNG，助手会话仍是JSON。
 
 网页入口见 [frontend/README.md](frontend/README.md)：打开即用，没有登录、注册或用户中心。“实际研究”连接本机服务，“设计预览”保留九个合成演示视图。桌面的“产业研究平台_前端设计交接”及同名ZIP保持独立、未接后端，供人类设计师工作。实际接线说明与验收见 [网页总装说明](docs/网页总装说明.md)。
 
+2026-10-22 最新流程：**采集 → 扩大向量/关键词匹配 → CSV落盘 → 二选一整理（确定性规则 / LLM清洗）→ 原有缺失诊断、建模判定、可选WGAN、XGBoost → 最终趋势**。确定性路径按配置 `extraction.rules` 的正则逐份正文取唯一值，本地核对唯一年度标题、发布时间和单位，不调用清洗API，适合版式固定的年度公报；LLM路径保留原分批无记忆清洗，并修复字段形状、同文档 block_id 错挂、变动量/分品种混淆和发布日月份误判。两条路径共用后续门槛与模型。默认向量阈值仍为0.50，保留指标数值与相邻数值行补查。清洗读取data/llm_input.csv，写data/cleaned.csv及data/review.csv；data/raw.csv保留清洗前候选。清洗使用根.env中既有LLM设置，llm=off关闭两阶段API。配置与边界见[CLI使用说明](docs/CLI使用说明.md)和[CSV后LLM清洗](docs/CSV后LLM清洗.md)。
+
+2026-10-22 双路径实测：使用“数学建模测试集”的26个全国粮食公报刊链接，确定性路径26/26命中，形成2000—2025连续26个年度，XGBoost状态为exploratory_model（训练12/验证4/测试4）；LLM路径清洗后25个连续年度，同样进入XGBoost（训练11/验证4/测试4）。两条路径的真实测试MAE都明显差于“沿用上期值”基线，报告均明确标注预测不可靠，不作为趋势结论。结果分层在 `output/cli/deterministic` 与 `output/cli/llm`；完整pytest 142通过/1跳过，前端类型检查和10项测试通过。本轮未提交或推送。本轮改动、运行方式和遗留问题见[交接文档](docs/交接_20261022_双抽取路径.md)。
+
+随后融入资料中的元素定位与清洗对照思路：HTML采集补查明确发布标签与唯一h1，定位依据保存在来源记录；结果新增“清洗前后数据核对”、七字段缺失/格式检查、重复候选统计，以及data_quality.png、data_quality_fields.csv和data_quality.json。均来自实际处理计数，不把完整度当成准确率。说明见[资料融合与数据质量](docs/资料融合与数据质量.md)。
+
 实际研究的“运行消息”展示逐网址真实开始/成功/失败及原因，例如 `(2/12) 爬取成功`、Robots限制或代理DNS错误；约每1.5秒随任务查询更新，完成或失败后保留，可用任务编号恢复。最终助手选“使用已配置的LLM API”，仅从根.env读取密钥，一次输入本轮数据，只输出发展趋势，不读写聊天、记忆或摘要。数据不足时明确说明无法判断趋势，不输出行动建议或追问。修改后端代码或.env后，需要先在原启动窗口Ctrl+C，再重新一键启动；旧任务不会自动重跑。
 
 2026-10-22 数据整理修复：空口径配置启用已有默认词表；产业关键词、相关指标数值与BGE联合召回；段落预算按文档均衡分配。明确统计标题可关联年度/地域，限额、企业、非年度及计划语义仍保留复核限制；匹配CSV和最终LLM保留关联上下文。新结果包含metadata/diagnostics.json，网页说明实际数据瓶颈和GAN未启动原因。当前仍只支持年度自动建模，WGAN要求至少64条真实训练行；本次未运行验收，也未降低门槛。详见[数据整理与建模门槛](docs/数据整理与建模门槛.md)。
 
-后续用户已恢复本轮测试：主项目完整Python回归111通过/1跳过，前端类型检查及10项交互测试通过；真实26网址执行因本机Fake-IP解析全部被公网闸门阻断，没有进入建模。最新事实见[验证记录](docs/验证记录_20261022.md)。可复现的公开网址和独立口径JSON在[建模来源示例](examples/research_sources/README.md)，与桌面“数学建模测试集”配套；来源集不等于合格训练集。
+后续复测：DNS恢复公网解析后，26个网址全部采集成功。确定性路径和LLM路径分别形成26个、25个连续年度，均进入XGBoost exploratory_model，但测试MAE都差于末值基线。完整Python回归142通过/1跳过，前端类型检查及10项交互测试通过。最新事实见[验证记录](docs/验证记录_20261022.md)。可复现的公开网址和独立口径JSON在[建模来源示例](examples/research_sources/README.md)，与桌面“数学建模测试集”配套；来源集不等于合格训练集。
 
 Live research messages report actual per-URL outcomes and reasons through durable task polling. Final trend analysis sends the current run in one stateless request without conversation memory; credentials never enter browser code. Restart API/worker after backend or local configuration changes.
 
-Local assembly: React/Next.js forwards to FastAPI and a durable Python worker. Users opt in before GAN training and confirm generated data after review; generation is five times the real training count. Real validation/test data remain isolated. A separate nine-view design demo and standalone frontend handoff remain available. BGE, IsolationForest, WGAN-GP and XGBoost run locally; only final language analysis uses an external API.
+Local assembly: React/Next.js forwards to FastAPI and a durable Python worker. After collection, users choose either a deterministic rule path (per-document regex, local year/date/unit checks, no cleaning LLM) or the original path (CSV first, then stateless LLM cleaning and local evidence validation). Both share the same series, gate and XGBoost code. Users opt in before GAN training and confirm generated data after review; generation is five times the real training count. Validation/test data remain isolated. Final trend analysis is a separate stateless API request. BGE, IsolationForest, WGAN-GP and XGBoost run locally.
 
 2026-10-21：三个 Python 模块已接线，统一使用根目录 .venv。验收范围与未完成项见 [集成验收记录](docs/集成验收记录.md)，接线细节见 [集成说明](docs/集成说明.md)。
 
-当前新增优先使用的 [CLI 版本](docs/CLI使用说明.md)：双击 `启动脚本/02_命令行/启动CLI.bat`，先输入网址 TXT 地址（每行一个网站），再输入一句检索需求，之后自动采集、整理、判断数据是否可建模。仅必要时询问 WGAN 的 PyTorch/TensorFlow 选择，普通流程参数在 config/cli.json，GAN参数直接取原仓库副本 config/wgan.json。CLI 不使用 SQL，结果覆盖写入 output/cli；后面的 HTTP 服务架构继续保留。
+当前新增优先使用的 [CLI 版本](docs/CLI使用说明.md)：双击 `启动脚本/02_命令行/启动CLI.bat`，先输入网址 TXT 地址（每行一个网站），再输入一句检索需求，之后自动采集、整理、判断数据是否可建模。可用 `--extraction llm|deterministic` 选择抽取路径；仅必要时询问 WGAN 的 PyTorch/TensorFlow 选择，普通流程参数在 config/cli.json，GAN参数直接取原仓库副本 config/wgan.json。CLI 不使用 SQL，结果覆盖写入 output/cli/llm 或 output/cli/deterministic；后面的 HTTP 服务架构继续保留。
 
-除最后的信息分析助手使用 API，其余运行在本机，GAN设备按原JSON选择。默认 BGE-small-zh-v1.5 INT8、浅树 XGBoost；GAN按原JSON训练，不做性能降档；缺失、清洗排除和采集失败原因都会在终端及产物中记录。自动建模保持未复核候选的探索性质，不把生成样本当成新事实。
+LLM数据清洗与最终趋势使用API，其余模型运行在本机，GAN设备按原JSON选择。默认 BGE-small-zh-v1.5 INT8、浅树 XGBoost；GAN按原JSON训练，不做性能降档；缺失、清洗排除和采集失败原因都会在终端及产物中记录。自动建模保持未复核候选的探索性质，不把生成样本当成新事实。
 
 ## 职责与调用关系
 
@@ -159,9 +165,9 @@ demo 使用标注的假模型。真实模式在根 .env 设置 INDUSTRY_ADVISOR_
 
 ## 相对路径与目录
 
-所有新完整管线结果统一放在 [output](output/README.md)：CLI 为 output/cli，网页为 output/web/<执行令牌>。每轮包含 report.md，以及分类的 data/ CSV、charts/ PNG、models/ 模型和 metadata/ JSON；各统计口径分放 series/短哈希。旧结果保留原位置，不自动搬动。启动入口分类见 [启动脚本说明](启动脚本/README.md)。
+所有新完整管线结果统一放在 [output](output/README.md)：CLI 为 output/cli/<llm|deterministic>，网页为 output/web/<llm|deterministic>/<执行令牌>。每轮包含 report.md，以及分类的 data/ CSV、charts/ PNG、models/ 模型和 metadata/ JSON；各统计口径分放 series/短哈希。确定性路径规则未采纳项写在 metadata/analysis.json 的 extraction.issues。旧结果保留原位置，不自动搬动。启动入口分类见 [启动脚本说明](启动脚本/README.md)。
 
-New pipeline results use output/cli or output/web/<run-token>, with separate CSV, chart, model and metadata directories. Windows launchers are grouped under 启动脚本. Historical artifacts remain readable. These storage and launcher changes have not been runtime-tested at the owner's request.
+New pipeline results use output/cli/<llm|deterministic> or output/web/<llm|deterministic>/<run-token>, with separate CSV, chart, model and metadata directories. Historical flat artifacts remain readable. Windows launchers are grouped under 启动脚本.
 
 配置和持久引用相对项目根或逻辑 data 根。程序执行时解析真实路径用于操作与边界检查，不把本机绝对路径写进 API 或研究导出。
 

@@ -31,7 +31,9 @@ def retrieval_settings(question, config, default_subjects, default_regions, metr
     # 指标名称补充召回只接受数值句；避免“收入”等泛词让整篇文章入选。
     numeric_metrics = list(dict.fromkeys(word for words in metrics.values() for word in words
                                         if len(word) >= 3))
-    return {"queries": [question], "keywords": keywords, "subjects": subjects, "regions": regions,
+    queries = list(dict.fromkeys([question, *[f"{word} 年度统计数据 规模 收入 产量"
+                                            for word in topic_terms[:3]]]))
+    return {"queries": queries, "keywords": keywords, "subjects": subjects, "regions": regions,
             "semantic_threshold": config.semantic_threshold, "topic_terms": topic_terms,
             "numeric_metrics": numeric_metrics,
             "scope_source": "explicit_config" if config.subjects or config.regions else "built_in_vocabulary"}
@@ -78,4 +80,22 @@ def supplement_numeric(scored, settings):
                 and not row.get("semantic_exclusion_hits")):
             row.update(selected=True, semantic_only=False, relevance_reason="numeric_context")
         result.append(row)
+    return result
+
+
+def expand_numeric_neighbors(scored):
+    """相关段落相邻的数值行补进候选，给表格行和省略指标的分句保留解释机会。"""
+    groups = defaultdict(list)
+    result = [dict(row) for row in scored]
+    for index, row in enumerate(result):
+        groups[row.get("text_sha256") or row.get("record_id")].append(index)
+    for indices in groups.values():
+        ordered = sorted(indices, key=lambda index: result[index].get("char_start", index))
+        anchors = {position for position, index in enumerate(ordered) if result[index]["selected"]}
+        for position, index in enumerate(ordered):
+            row = result[index]
+            if (not row["selected"] and not row.get("semantic_exclusion_hits")
+                    and re.search(r"\d", row.get("text") or "")
+                    and (position - 1 in anchors or position + 1 in anchors)):
+                row.update(selected=True, semantic_only=False, relevance_reason="adjacent_numeric_context")
     return result

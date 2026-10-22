@@ -17,6 +17,7 @@ from app.contracts.pipeline import CLIConfig
 from app.contracts.pipeline_web import PipelineRequest
 from app.core.errors import ServiceError
 from app.pipeline_cli import collect, fallback_analysis, selected_evidence, summarize
+from app.pipeline_llm import clean_csv
 
 
 def parent_result(runtime, request):
@@ -84,15 +85,24 @@ def _copy_parent(runtime, parent, paths):
 def execute(runtime, claim):
     """Worker执行一个阶段并返回页面所需真实状态；完整模型摘要只在最后传给助手。"""
     request = PipelineRequest.model_validate(claim.request)
-    if claim.attempts > 1 and request.stage == "model":
-        raise ServiceError("E_PIPELINE_OUTCOME_UNKNOWN", "建模/建议执行曾中断，请核对产物后重新提交新操作。", 409)
+    if claim.attempts > 1 and request.stage in {"prepare", "model"}:
+        raise ServiceError("E_PIPELINE_OUTCOME_UNKNOWN", "整理/建模/分析执行曾中断，请核对产物后重新提交新操作，避免重复API请求。", 409)
     progress = ResearchProgress(lambda value: runtime.operations.update_progress(claim, value),
                                 total=len(request.urls))
-    paths = DataPaths(runtime.settings.data_dir).pipeline(claim.token.replace("-", ""), output=True)
-    workspace = DataPaths(runtime.settings.data_dir).research_workspace(claim.token.replace("-", ""))
+    token = claim.token.replace("-", "")
+    workspace = DataPaths(runtime.settings.data_dir).research_workspace(token)
+    parent = None
     if request.stage == "prepare":
+        mode = request.extraction
         config = CLIConfig.model_validate(read_json(CLI_CONFIG))
         config.llm, config.retrieval = request.llm, request.retrieval
+        config.extraction.mode = mode
+    else:
+        progress.phase("preparing", "正在读取上一阶段结果")
+        parent = parent_result(runtime, request)
+        mode = parent.get("extraction") or "llm"
+    paths = DataPaths(runtime.settings.data_dir).pipeline(f"{mode}/{token}", output=True)
+    if request.stage == "prepare":
         config.gan.mode = "auto"
         forecast_at = datetime.now().astimezone().isoformat()
         progress.phase("collecting", f"开始采集，共 {len(request.urls)} 个网址")
@@ -111,6 +121,15 @@ def execute(runtime, claim):
                 config.laptop.timeout_s, stream=True)
         except ServiceError as exc:
             analysis = fallback_analysis(request.question, records, paths, exc.error.message)
+        if mode == "deterministic":
+            progress.phase("csv_ready", "确定性规则抽取完成，未调用LLM清洗")
+            if not analysis.get("llm_cleaning"):
+                analysis["llm_cleaning"] = {"status": "disabled", "model": "",
+                                            "reason": "确定性规则路径不调用LLM清洗"}
+        else:
+            progress.phase("csv_ready", "匹配内容与初步数据已写入CSV，正在准备LLM清洗")
+            analysis = clean_csv(request.question, analysis, config, runtime.settings, paths, workspace,
+                                 advisor=runtime.advisor, on_event=progress.phase)
         diagnostics = analysis.get("diagnostics")
         if diagnostics:
             progress.phase("data_diagnosis", diagnostics["message"])
@@ -119,8 +138,6 @@ def execute(runtime, claim):
         context = {"question": request.question, "forecast_at": forecast_at,
                    "config": config.model_dump(mode="json")}
     else:
-        progress.phase("preparing", "正在读取上一阶段结果")
-        parent = parent_result(runtime, request)
         _copy_parent(runtime, parent, paths)
         context = parent["context"]
         config = CLIConfig.model_validate(context["config"])
@@ -160,9 +177,13 @@ def execute(runtime, claim):
         advisor_status = read_json(paths.file("llm"))["status"]
         progress.phase("summary_result", "发展趋势分析已生成" if advisor_status == "completed"
                        else f"分析助手状态：{advisor_status}；数据与状态报告已保留")
-    result = {"stage": stage, "run_id": paths.root.name, "storage_layout": "output-v1", "context": context,
+    result = {"stage": stage, "run_id": f"{mode}/{paths.root.name}", "extraction": mode,
+              "storage_layout": "output-v1", "context": context,
               "counts": analysis["counts"], "warning": analysis.get("warning"),
               "diagnostics": analysis.get("diagnostics"),
+              "llm_cleaning": analysis.get("llm_cleaning"),
+              "extraction_detail": analysis.get("extraction"),
+              "data_quality": analysis.get("data_quality"),
               "can_model": can_model, "gan_available": modeling["needs_gan"],
               "gan_usable": any(item.get("gan", {}).get("status") == "accepted"
                                 for item in modeling["series_reports"]),
@@ -171,7 +192,7 @@ def execute(runtime, claim):
               "report": read_text(paths.file("report")) if stage == "completed" else None}
     write_json(paths.file("config"), config.model_dump(mode="json"))
     write_json(paths.file("manifest"), {"storage_layout": "output-v1", "run_id": result["run_id"],
-        "operation_id": request.operation_id, "parent_id": request.parent_id,
+        "extraction": mode, "operation_id": request.operation_id, "parent_id": request.parent_id,
         "project_id": request.project_id, "stage": stage, "question": context["question"],
         "created_at": datetime.now().astimezone().isoformat(), "counts": result["counts"],
         "modeling": modeling, "llm_status": result["llm"]["status"] if result["llm"] else None})

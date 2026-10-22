@@ -2,8 +2,9 @@
  * LiveResearch注入数据和动作；不混用demo fixture，不访问本机磁盘。
  */
 import type { PipelineResult } from "@/types/pipeline";
+import { DataQualityPanel } from "./DataQualityPanel";
 type Props = { result: PipelineResult; files: { name: string; url: string }[]; busy: boolean; framework: "pytorch" | "tensorflow"; onFramework: (value: "pytorch" | "tensorflow") => void; onGan: () => void; onModel: (accept: boolean) => void; onReset: () => void };
-const CHART_NAMES: Record<string, string> = { "evaluation.png": "预测对照、残差与误差分布", "importance.png": "XGBoost原生特征重要性", "trend.png": "真实测试期趋势与探索性预测", "missing.png": "数据缺失情况", "comparison.png": "模型性能对比", "shap.png": "TreeSHAP特征解释", "gan_tsne.png": "真实训练数据与生成数据 t-SNE", "gan.png": "WGAN训练曲线" };
+const CHART_NAMES: Record<string, string> = { "evaluation.png": "预测对照、残差与误差分布", "importance.png": "XGBoost原生特征重要性", "trend.png": "真实测试期趋势与探索性预测", "missing.png": "数据缺失情况", "data_quality.png": "清洗前后记录数与字段缺失对照", "comparison.png": "模型性能对比", "shap.png": "TreeSHAP特征解释", "gan_tsne.png": "真实训练数据与生成数据 t-SNE", "gan.png": "WGAN训练曲线" };
 
 /** 展示真实操作产物，未生成的回测图不显示占位；失败原因保持原样可查。 */
 export function LiveResults({ result, files, busy, framework, onFramework, onGan, onModel, onReset }: Props) {
@@ -11,7 +12,13 @@ export function LiveResults({ result, files, busy, framework, onFramework, onGan
   return <section className="panel" aria-labelledby="live-result-title">
     <h2 id="live-result-title">{result.stage === "choice" ? "信息整理完成：选择建模方式" : result.stage === "gan_review" ? (result.gan_usable ? "GAN数据审查：查看并决定是否采用" : "GAN阶段结果：未取得可采用数据，请查看原因") : "研究结果与分析"}</h2>
     <p>{result.context.question}</p>
+    <p className="notice">数据抽取路径：{result.extraction === "deterministic" ? "手动/确定性规则（PDF 式），未调用 LLM 清洗" : "自动/LLM 清洗（原路径）"}。{result.extraction_detail?.rule_count ? `本轮规则 ${result.extraction_detail.rule_count} 条。` : ""}</p>
+    {result.extraction_detail?.issues && result.extraction_detail.issues.length > 0 && <details><summary>确定性规则未采纳 {result.extraction_detail.issues.length} 项</summary><ul>{result.extraction_detail.issues.slice(0, 20).map((item, index) => <li key={index}>{item.message}</li>)}</ul></details>}
     {result.warning && <p className="notice">{result.warning}</p>}
+    {result.llm_cleaning && (result.extraction === "deterministic"
+      ? <p className="notice">本轮未调用 LLM 清洗：{result.llm_cleaning.reason}</p>
+      : <p className="notice">LLM 数据清洗：{result.llm_cleaning.status}。{result.llm_cleaning.reason} 清洗前内容与待复核记录可在下方下载 llm_input.csv、review.csv。</p>)}
+    {result.data_quality && <DataQualityPanel quality={result.data_quality} />}
     <dl className="stats">{Object.entries(result.counts).filter(([name]) => ["documents", "selected_passages", "candidate_facts", "series_rows"].includes(name)).map(([name, value]) => <div key={name}><dt>{{ documents: "采集材料", selected_passages: "匹配段落", candidate_facts: "数值候选", series_rows: "同口径年度行" }[name]}</dt><dd>{value}</dd></div>)}</dl>
     <details><summary>来源访问记录与跳过原因（{result.access.length}项）</summary><ul className="log">{result.access.map((item, index) => <li key={index}>{item.url}：{item.status} / {item.reason}</li>)}</ul></details>
     {result.diagnostics && <div className="notice"><strong>数据诊断：{result.diagnostics.message}</strong>
