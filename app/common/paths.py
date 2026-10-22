@@ -88,7 +88,7 @@ class PipelinePaths:
             "trend": "trend.png", "missing_plot": "missing.png", "gan_plot": "gan.png",
             "runtime": "runtime.json", "run_lock": "run.lock",
             "materials": "materials.json", "passages": "passages.csv", "analysis": "analysis.json",
-            "manifest": "manifest.json", "status": "status.json",
+            "manifest": "manifest.json", "status": "status.json", "diagnostics": "diagnostics.json",
             "information": "information.csv",
             "forecast": "forecast.csv",
             "tsne": "gan_tsne.png", "tsne_points": "gan_tsne.csv", "tsne_meta": "gan_tsne.json",
@@ -117,7 +117,7 @@ class PipelinePaths:
                  "rejected", "missing", "cleaning", "reviewed", "series", "train", "validation",
                  "test", "generated", "quality", "model", "predictions", "evaluation",
                  "importance", "trend", "missing_plot", "gan_plot", "runtime", "materials",
-                 "passages", "analysis", "manifest", "status", "information", "forecast",
+                 "passages", "analysis", "manifest", "status", "diagnostics", "information", "forecast",
                  "tsne", "tsne_points", "tsne_meta", "gan_review", "evidence", "comparison", "shap"]
         vendor = ["model.npz", "model.json", "normalizer.json", "training_history.csv",
                   "generated_data.csv", "generated_encoded.csv", "training_data.csv",

@@ -9,11 +9,15 @@ const CHART_NAMES: Record<string, string> = { "evaluation.png": "预测对照、
 export function LiveResults({ result, files, busy, framework, onFramework, onGan, onModel, onReset }: Props) {
   const images = files.filter((file) => file.name.endsWith(".png"));
   return <section className="panel" aria-labelledby="live-result-title">
-    <h2 id="live-result-title">{result.stage === "choice" ? "信息整理完成：选择建模方式" : result.stage === "gan_review" ? "GAN生成完成：查看并决定是否采用" : "研究结果与分析"}</h2>
+    <h2 id="live-result-title">{result.stage === "choice" ? "信息整理完成：选择建模方式" : result.stage === "gan_review" ? (result.gan_usable ? "GAN数据审查：查看并决定是否采用" : "GAN阶段结果：未取得可采用数据，请查看原因") : "研究结果与分析"}</h2>
     <p>{result.context.question}</p>
     {result.warning && <p className="notice">{result.warning}</p>}
     <dl className="stats">{Object.entries(result.counts).filter(([name]) => ["documents", "selected_passages", "candidate_facts", "series_rows"].includes(name)).map(([name, value]) => <div key={name}><dt>{{ documents: "采集材料", selected_passages: "匹配段落", candidate_facts: "数值候选", series_rows: "同口径年度行" }[name]}</dt><dd>{value}</dd></div>)}</dl>
     <details><summary>来源访问记录与跳过原因（{result.access.length}项）</summary><ul className="log">{result.access.map((item, index) => <li key={index}>{item.url}：{item.status} / {item.reason}</li>)}</ul></details>
+    {result.diagnostics && <div className="notice"><strong>数据诊断：{result.diagnostics.message}</strong>
+      {result.diagnostics.rejection_reasons.length > 0 && <ul>{result.diagnostics.rejection_reasons.map((item) => <li key={item.code}>{item.message}：{item.count}条</li>)}</ul>}
+    </div>}
+    {result.modeling.gan_gate && <p className="notice">{result.modeling.gan_gate.reason} {result.modeling.gan_gate.sample_definition}</p>}
     {!result.can_model && <div className="notice"><strong>未满足建模条件，直接导出已有信息。</strong><ul>{result.modeling.requirements.map((reason) => <li key={reason}>{reason}</li>)}{result.modeling.series_reports.flatMap((item) => item.requirements).map((reason, index) => <li key={index}>{reason}</li>)}</ul></div>}
     {result.modeling.series_reports.map((item) => <article key={item.directory} className="series-result"><h3>{item.scope}</h3>
       <p>状态：{item.status}。{item.split && `真实训练 ${item.split.train} / 验证 ${item.split.validation} / 测试 ${item.split.test}。`}</p>
@@ -31,7 +35,9 @@ export function LiveResults({ result, files, busy, framework, onFramework, onGan
     {result.stage === "gan_review" && <p className="notice">t-SNE只辅助观察分布，重叠不证明质量。采用后仍与仅真实数据模型比较，若真实验证没有改善则回退。</p>}
     {images.length > 0 && <div className="chart-grid">{images.map((image) => { const label = CHART_NAMES[image.name.split("/").at(-1)!] || image.name; return <figure className="chart" key={image.name}><figcaption>{label}</figcaption><a href={image.url} target="_blank" rel="noreferrer"><img src={image.url} alt={`本轮实际计算：${label}`} loading="lazy" style={{ width: "100%", height: "auto" }} /></a></figure>; })}</div>}
     {result.stage === "gan_review" && <div className="actions"><button disabled={busy || !result.gan_usable} onClick={() => onModel(true)}>采用通过检查的 GAN 数据，开始 XGBoost</button><button disabled={busy} onClick={() => onModel(false)}>不采用 GAN 数据，仅用真实数据建模</button></div>}
-    {result.stage === "completed" && <><h3>信息分析与建议</h3><p>助手状态：{result.llm?.status} {result.llm?.reason}</p><pre className="report-text">{result.report}</pre></>}
+    {result.stage === "completed" && <><h3>发展趋势</h3>
+      {result.llm?.reply?.content ? <pre className="report-text">{result.llm.reply.content}</pre> : <p>本轮未生成发展趋势分析。{result.llm?.reason || (result.llm?.status === "disabled" ? "本轮已关闭 LLM。" : "")}</p>}
+    </>}
     <details><summary>下载本轮实际产物（{files.length}项）</summary><ul>{files.map((file) => <li key={file.name}><a href={file.url}>{file.name}</a></li>)}</ul></details>
     <div className="actions"><button disabled={busy} onClick={onReset}>开始新的研究</button></div>
   </section>;

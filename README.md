@@ -15,11 +15,19 @@
 | XGBoost | 同口径年度数据的回归预测与独立真实测试评估 | 本地CPU |
 | 规则、pandas / SciPy / pyampute | 数值抽取、单位检查、去重、清洗及缺失诊断 | 本地 |
 | t-SNE / XGBoost原生TreeSHAP | 分布可视化与模型解释；不等于质量或因果证明 | 本地 |
-| 外部LLM API | 只在最后解读证据、指标、限制与建议；缺少密钥仍导出数据报告 | 远程API |
+| 外部LLM API | 单次读取本轮证据和模型结果，只输出发展趋势，不读写会话记忆；缺少密钥仍导出数据报告 | 远程API |
 
 Windows复用既有SQLite持久队列；Linux Celery/Redis/PostgreSQL配置仍保留，尚未做真实部署验收。只有CLI不使用SQL；网页研究产物仍是CSV/JSON/PNG，助手会话仍是JSON。
 
 网页入口见 [frontend/README.md](frontend/README.md)：打开即用，没有登录、注册或用户中心。“实际研究”连接本机服务，“设计预览”保留九个合成演示视图。桌面的“产业研究平台_前端设计交接”及同名ZIP保持独立、未接后端，供人类设计师工作。实际接线说明与验收见 [网页总装说明](docs/网页总装说明.md)。
+
+实际研究的“运行消息”展示逐网址真实开始/成功/失败及原因，例如 `(2/12) 爬取成功`、Robots限制或代理DNS错误；约每1.5秒随任务查询更新，完成或失败后保留，可用任务编号恢复。最终助手选“使用已配置的LLM API”，仅从根.env读取密钥，一次输入本轮数据，只输出发展趋势，不读写聊天、记忆或摘要。数据不足时明确说明无法判断趋势，不输出行动建议或追问。修改后端代码或.env后，需要先在原启动窗口Ctrl+C，再重新一键启动；旧任务不会自动重跑。
+
+2026-10-22 数据整理修复：空口径配置启用已有默认词表；产业关键词、相关指标数值与BGE联合召回；段落预算按文档均衡分配。明确统计标题可关联年度/地域，限额、企业、非年度及计划语义仍保留复核限制；匹配CSV和最终LLM保留关联上下文。新结果包含metadata/diagnostics.json，网页说明实际数据瓶颈和GAN未启动原因。当前仍只支持年度自动建模，WGAN要求至少64条真实训练行；本次未运行验收，也未降低门槛。详见[数据整理与建模门槛](docs/数据整理与建模门槛.md)。
+
+后续用户已恢复本轮测试：主项目完整Python回归111通过/1跳过，前端类型检查及10项交互测试通过；真实26网址执行因本机Fake-IP解析全部被公网闸门阻断，没有进入建模。最新事实见[验证记录](docs/验证记录_20261022.md)。可复现的公开网址和独立口径JSON在[建模来源示例](examples/research_sources/README.md)，与桌面“数学建模测试集”配套；来源集不等于合格训练集。
+
+Live research messages report actual per-URL outcomes and reasons through durable task polling. Final trend analysis sends the current run in one stateless request without conversation memory; credentials never enter browser code. Restart API/worker after backend or local configuration changes.
 
 Local assembly: React/Next.js forwards to FastAPI and a durable Python worker. Users opt in before GAN training and confirm generated data after review; generation is five times the real training count. Real validation/test data remain isolated. A separate nine-view design demo and standalone frontend handoff remain available. BGE, IsolationForest, WGAN-GP and XGBoost run locally; only final language analysis uses an external API.
 
@@ -205,7 +213,7 @@ Compose 先迁移数据库再启动服务。Python 服务共用同一镜像和�
 
 ## 检查与边界
 
-恢复验收后，可手动运行 `启动脚本/03_开发维护/运行全部检查.bat` 或 ./scripts/Test.ps1，分别执行服务、独立助手、爬虫离线测试并检查依赖一致性。实际 CPU 模型计算用 scripts/verify_environment.py，结果在 work/environment-check.json。当前仍遵守所有者暂停测试的要求，本次目录与入口调整未运行验收。
+可手动运行 `启动脚本/03_开发维护/运行全部检查.bat` 或 ./scripts/Test.ps1，分别执行服务、独立助手、爬虫离线测试并检查依赖一致性。实际 CPU 模型计算用 scripts/verify_environment.py，结果在 work/environment-check.json。所有者已恢复本轮测试，实际范围及真实网络阻断见[验证记录](docs/验证记录_20261022.md)；未列出的检查不视为本轮已执行。
 
 当前为单可信调用方服务，project_id 是材料归属检查，不等于用户授权。React/Next.js 已连接实际研究流程且不做登录；多用户授权、审核管理 HTTP 界面、分布式文件存储和多主机限速未实施。文件锁限速要求共享同一文件系统。
 

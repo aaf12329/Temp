@@ -77,7 +77,7 @@ def read_urls(reference: str, max_urls: int) -> tuple[list[str], list[dict]]:
     return urls, ignored
 
 
-def collect(urls, config, settings, *, adapter=None):
+def collect(urls, config, settings, *, adapter=None, on_event=None):
     """顺序受限采集，不启动数据库；每个失败独立记录并继续后续网址。"""
     storage = Storage(settings.data_dir)
     storage.initialize()
@@ -87,6 +87,8 @@ def collect(urls, config, settings, *, adapter=None):
     request = CrawlRequest(job_id="cli-" + uuid4().hex, project_id="cli",
                            urls=urls, timeout_s=20, per_host_delay_s=1.5)
     for index, url in enumerate(urls, 1):
+        if on_event:
+            on_event({"index": index, "total": len(urls), "url": url, "status": "fetching"})
         print(f"[采集 {index}/{len(urls)}] {url}：检查站点策略、robots、响应与网页类型", flush=True)
         entry = {"url": url, "status": "skipped", "reason": None}
         try:
@@ -136,6 +138,8 @@ def collect(urls, config, settings, *, adapter=None):
             entry["reason"] = str(exc)
         print(f"[{entry['status']}] {entry['reason']}", flush=True)
         accesses.append(entry)
+        if on_event:
+            on_event({**entry, "index": index, "total": len(urls)})
     return records, files, evidence, accesses
 
 
@@ -175,6 +179,7 @@ def _summary(analysis, modeling):
     summary = {"counts": analysis["counts"], "truncated": analysis.get("truncated"),
             "status": modeling["status"], "requirements": modeling.get("requirements", []),
             "analysis_warning": analysis.get("warning"),
+            "data_diagnosis": (analysis.get("diagnostics") or {}).get("message"),
             "retrieval": analysis.get("retrieval"),
             "series": reports, "candidate_evidence_only": True,
             "synthetic_policy": "生成数据只用于训练，不是新证据；验证/测试均为真实观测"}
@@ -187,10 +192,17 @@ def _summary(analysis, modeling):
 
 
 def selected_evidence(paths, evidence):
-    """给最终助手匹配段落而非无关的网页开头，原文哈希仍指向完整来源。"""
+    """给最终助手匹配原文及机器关联的范围限制，原文哈希仍指向完整来源。"""
     grouped = {}
     for row in read_csv_rows(paths.file("information")):
-        grouped.setdefault(row.get("record_id"), []).append(row.get("text") or "")
+        text = row.get("text") or ""
+        context = row.get("context_evidence")
+        flags = row.get("candidate_flags")
+        if context and context != "[]":
+            text += "\n【本段机器关联的上下文，需结合原文核对】" + context
+        if flags and flags != "[]":
+            text += "\n【本段候选尚未解决的限制】" + flags
+        grouped.setdefault(row.get("record_id"), []).append(text)
     selected = []
     for item in evidence:
         texts = grouped.get(item["record_id"], [])
@@ -202,7 +214,8 @@ def selected_evidence(paths, evidence):
 def summarize(question, analysis, modeling, evidence, config, settings, paths, *, advisor=None):
     """最后一步可调用 API，失败仍保存 CSV/指标和明确标记的本地状态报告。"""
     summary = _summary(analysis, modeling)
-    api = {"status": "disabled", "mode": config.llm, "model": settings.advisor_model}
+    api = {"status": "disabled", "mode": config.llm, "model": settings.advisor_model,
+           "memory_enabled": False, "analysis_scope": "development_trend"}
     content = None
     if config.llm != "off":
         if config.llm == "api" and not settings.advisor_api_key.get_secret_value():
@@ -211,11 +224,8 @@ def summarize(question, analysis, modeling, evidence, config, settings, paths, *
             print(f"[分析助手] {'演示模式' if config.llm == 'demo' else 'API'} / "
                   f"{settings.advisor_model}；仅本步骤使用远程语言模型", flush=True)
             try:
-                result = (advisor or IntegratedAdvisor(settings)).execute({
-                    "operation_id": "cli-" + uuid4().hex, "project_id": "cli",
-                    "session_id": "run-" + uuid4().hex,
-                    "question": question, "material_ids": [], "demo": config.llm == "demo"},
-                    evidence[:10], summary)
+                result = (advisor or IntegratedAdvisor(settings)).analyze_trend(
+                    question, evidence[:10], summary, demo=config.llm == "demo")
                 content = result["reply"]["content"]
                 api.update(status="completed", reply=result["reply"], warnings=result["warnings"])
             except ServiceError as exc:
@@ -244,9 +254,17 @@ def summarize(question, analysis, modeling, evidence, config, settings, paths, *
             if item.get("forecast"):
                 lines.extend(["", f"探索性预测：{item['forecast']['target_period']}年，{item['forecast']['prediction']:.3f}；不是来源事实。"])
             lines.extend(["", f"模型、预测 CSV 与性能图：{item['directory']}", ""])
+    diagnostics = analysis.get("diagnostics") or {}
+    if diagnostics:
+        lines.extend(["## 数据诊断", "", diagnostics["message"], ""])
+        lines.extend(f"- {item['message']}：{item['count']}条" for item in diagnostics.get("rejection_reasons", []))
+        reference = paths.file("diagnostics").relative_to(paths.root).as_posix()
+        lines.extend(["", f"详细词表、预算及召回方式见 {reference}。", ""])
+    if modeling.get("gan_gate"):
+        lines.extend([modeling["gan_gate"]["reason"], ""])
     lines.extend(modeling.get("requirements", []))
-    lines.extend(["", "## 分析与建议", "", content or (
-        "本轮未取得 LLM 分析，不将本地状态说明冒充模型总结。" + str(api.get("reason", "")))])
+    lines.extend(["", "## 发展趋势", "", content or (
+        "本轮未取得发展趋势分析。" + str(api.get("reason", "")))])
     write_text(paths.file("report"), "\n".join(lines) + "\n")
     print(f"[分析助手] {api['status']}" + (f"：{api['reason']}" if api.get("reason") else ""), flush=True)
     if content:

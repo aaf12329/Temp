@@ -12,6 +12,7 @@ from app.common.component import run_component
 from app.common.evidence_files import stage_records
 from app.common.file_io import read_bytes, read_json, read_text, write_bytes, write_json
 from app.common.paths import CLI_CONFIG, DataPaths, PipelinePaths
+from app.common.progress import ResearchProgress
 from app.contracts.pipeline import CLIConfig
 from app.contracts.pipeline_web import PipelineRequest
 from app.core.errors import ServiceError
@@ -85,6 +86,8 @@ def execute(runtime, claim):
     request = PipelineRequest.model_validate(claim.request)
     if claim.attempts > 1 and request.stage == "model":
         raise ServiceError("E_PIPELINE_OUTCOME_UNKNOWN", "建模/建议执行曾中断，请核对产物后重新提交新操作。", 409)
+    progress = ResearchProgress(lambda value: runtime.operations.update_progress(claim, value),
+                                total=len(request.urls))
     paths = DataPaths(runtime.settings.data_dir).pipeline(claim.token.replace("-", ""), output=True)
     workspace = DataPaths(runtime.settings.data_dir).research_workspace(claim.token.replace("-", ""))
     if request.stage == "prepare":
@@ -92,11 +95,14 @@ def execute(runtime, claim):
         config.llm, config.retrieval = request.llm, request.retrieval
         config.gan.mode = "auto"
         forecast_at = datetime.now().astimezone().isoformat()
-        records, files, evidence, access = collect(request.urls, config, runtime.settings, adapter=runtime.adapter)
+        progress.phase("collecting", f"开始采集，共 {len(request.urls)} 个网址")
+        records, files, evidence, access = collect(request.urls, config, runtime.settings,
+                                                  adapter=runtime.adapter, on_event=progress.crawl)
         write_json(paths.file("access"), access)
         write_json(paths.file("materials"), records)
         write_json(paths.file("evidence"), evidence)
         staged, references = stage_records(records, files, workspace)
+        progress.phase("analyzing", "采集结束，正在本地匹配信息、抽取数值并整理数据")
         try:
             analysis = run_component({"action": "cli-analyze", "records": staged,
                 "question": request.question, "reference_map": references, "output": str(paths.root),
@@ -105,9 +111,15 @@ def execute(runtime, claim):
                 config.laptop.timeout_s, stream=True)
         except ServiceError as exc:
             analysis = fallback_analysis(request.question, records, paths, exc.error.message)
+        diagnostics = analysis.get("diagnostics")
+        if diagnostics:
+            progress.phase("data_diagnosis", diagnostics["message"])
+            for item in diagnostics.get("rejection_reasons", [])[:3]:
+                progress.phase("data_diagnosis", f"{item['message']}：{item['count']}条")
         context = {"question": request.question, "forecast_at": forecast_at,
                    "config": config.model_dump(mode="json")}
     else:
+        progress.phase("preparing", "正在读取上一阶段结果")
         parent = parent_result(runtime, request)
         _copy_parent(runtime, parent, paths)
         context = parent["context"]
@@ -124,6 +136,10 @@ def execute(runtime, claim):
     lock.parent.mkdir(parents=True, exist_ok=True)
     try:
         with FileLock(lock, timeout=0):
+            message = {"prepare": "正在检查真实数据量与建模门槛",
+                       "gan": "正在训练 WGAN；生成后将展示 t-SNE 并等待确认",
+                       "model": "正在进行 XGBoost 建模与真实测试集评估"}[request.stage]
+            progress.phase("modeling", message)
             modeling = run_component(payload, workspace, runtime.settings.data_dir,
                 config.laptop.timeout_s if request.stage == "prepare" else config.gan.timeout_s,
                 stream=True)
@@ -131,14 +147,22 @@ def execute(runtime, claim):
         raise ServiceError("E_COMPUTE_BUSY", "另一项本地建模正在运行，请等待完成后重新提交。", 409) from None
     can_model = any(item["status"] in {"planned", "gan_review", "gan_unavailable", "exploratory_model"}
                     for item in modeling["series_reports"])
+    if request.stage == "prepare" and modeling.get("gan_gate"):
+        progress.phase("gan_gate", modeling["gan_gate"]["reason"])
     stage = "choice" if request.stage == "prepare" and can_model else (
         "gan_review" if request.stage == "gan" else "completed")
     if stage == "completed":
+        progress.phase("summarizing", "正在调用 LLM 分析本轮数据的发展趋势" if config.llm == "api"
+                       else "正在整理最终报告")
         evidence = read_json(paths.file("evidence"))
         summarize(context["question"], analysis, modeling, selected_evidence(paths, evidence), config,
                   runtime.settings, paths, advisor=runtime.advisor)
+        advisor_status = read_json(paths.file("llm"))["status"]
+        progress.phase("summary_result", "发展趋势分析已生成" if advisor_status == "completed"
+                       else f"分析助手状态：{advisor_status}；数据与状态报告已保留")
     result = {"stage": stage, "run_id": paths.root.name, "storage_layout": "output-v1", "context": context,
               "counts": analysis["counts"], "warning": analysis.get("warning"),
+              "diagnostics": analysis.get("diagnostics"),
               "can_model": can_model, "gan_available": modeling["needs_gan"],
               "gan_usable": any(item.get("gan", {}).get("status") == "accepted"
                                 for item in modeling["series_reports"]),
@@ -152,4 +176,8 @@ def execute(runtime, claim):
         "created_at": datetime.now().astimezone().isoformat(), "counts": result["counts"],
         "modeling": modeling, "llm_status": result["llm"]["status"] if result["llm"] else None})
     result["files"] = _files(paths)
+    progress.phase("completed", {"choice": "信息整理完成，请选择是否训练 GAN",
+        "gan_review": ("GAN 数据可供审查，请查看 t-SNE 并决定是否采用" if result["gan_usable"]
+                       else "GAN 阶段处理结束，未取得可采用数据，请查看具体原因"),
+        "completed": "本轮研究完成，结果与报告已保存"}[stage])
     return result

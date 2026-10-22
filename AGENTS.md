@@ -1,5 +1,9 @@
 # 项目入口
 
+本轮最终检查更新：完整主项目pytest为111通过/1跳过（98.89秒），前端10测试及类型检查通过，15个受影响Python文件AST和Ruff通过。首次全量发现tests/test_deployment.py的中文路径探针输出不是UTF-8，已给该探针加-X utf8和退出码断言，完整重跑通过；正式Start.ps1本来已设置PYTHONUTF8=1。36通过/1跳过是先执行的针对性子集，不与完整数量相加。本轮未做生产构建、浏览器视觉或新的真实LLM请求；真实26网址仍为DNS阻断而非建模成功。当前授权仅用于本轮提交并推送一次。
+
+2026-10-22当前授权及验证：用户已明确“你去跑测试”，随后要求桌面测试集并授权本轮commit/push一次，覆盖以下旧暂停要求；仅用于包含本记录的当前提交，后续不得延用。桌面数学建模测试集已经整理，公开链接及无密钥配置归档examples/research_sources。针对修复回归36通过/1跳过（Windows符号链接权限），前端类型与10项交互测试通过，修改Python Ruff通过。真实26公报任务在output/real-source-tests/20261022-grain-104504，81.383秒、26项全部被非公网DNS闸门阻断，正文/年度行/模型均0；www.cee.edu.cn解析198.18.0.22且Clash进程运行。未调用真实LLM或降低门槛，未改代理；不能声称真实建模成功。详见docs/验证记录_20261022.md。桌面资料及本机产物不作为自动化夹具，自动化继续使用临时合成数据。
+
 先读 README.md、docs/集成说明.md 和 docs/集成验收记录.md。2026-10-21 所有者已恢复开发，授权连接主服务、爬虫研究模块与建议助手，并统一 Python 环境。旧暂停交接保留为历史记录，暂停要求已经解除。
 
 规范唯一入口为相邻目录 ../CoMind/01_AI项目协作参考/README.md。本文只记录项目事实。子项目历史文档中旧环境和“不归并”描述，以本入口为准；历史子代理授权不延续。
@@ -27,6 +31,12 @@ Windows 使用数据库持久队列；Linux 容器入口为 Celery + Redis + Pos
 一键启动准备依赖后可同时监管API、Worker和标准frontend。代码路径、默认配置与产物引用仍相对根/逻辑data根。桌面设计包是独立纯前端快照，不能将主项目Node代理或Python源码直接覆盖过去。人类负责最终视觉设计。
 
 当前所有者最新要求“暂时不做测试就先搭建起来”。停止测试、冒烟与训练验收，仅进行代码、配置和文档收口。此前通过记录不能当成最后版本重新验收；未获后续恢复指令不继续运行这些检查。
+
+2026-10-22 数据漏检修复：所有者授权解决output无可建模数据的问题。本轮0子代理，未重爬、训练、调用模型或运行测试。workflow编排新增selection/context/diagnostics三个纯规则叶子；空口径使用组件默认词表及餐饮别名，混合召回不降低BGE阈值，预算按文档轮流且数值优先。统计标题可关联唯一年度/地域，指标名可提供餐饮主体；标题主体、限额/企业/非年度/计划及补全后的冲突仍保护。关联证据保留在候选及匹配CSV并传给最终无记忆LLM。PipelinePaths登记diagnostics；网页和运行消息展示实际瓶颈，gan_gate区分未启动与失败。20年度/XGB时间划分、64真实训练行GAN门槛、原GAN JSON和5倍生成均未改；月度季度与通用表格抽取没有本轮适配。新增tests/test_data_recovery.py尚未执行；旧output未改，需正常重启后提交新任务。说明见docs/数据整理与建模门槛.md；备份在忽略目录work/before-extraction-repair-20261022。本轮没有push授权。
+
+2026-10-22最新需求：研究最终LLM一次性输入本轮数据，不搞记忆，只说发展趋势。summarize改调用IntegratedAdvisor.analyze_trend，直接ChatModel.complete(max_retries=0)，不走execute/build_bot/History/Memory，不创建会话或读写聊天摘要；结果仍保存llm.json但不作为后续上下文。网页最终只显示llm.reply.content，完整report.md继续下载。旧独立聊天与旧建议API保持原契约。提示词禁止建议、行动计划和追问；证据不足明确无法判断趋势。此修改及新增隔离用例尚未运行验收，不追加真实模型请求。
+
+2026-10-22后续授权：曾明确要求两轮真实来源测试，已完成19/48网址，均因Clash Fake-IP被公网地址闸门阻断，不能据此判定来源数据量不足。随后所有者改为自行测试。当前新增实际网页消息框与接通最终LLM的授权；LLM密钥只留根.env，已通过正式IntegratedAdvisor完成最小连接检查，使用deepseek-flash。不将其推广为全流程验收，不运行新的真实网站批量测试。ResearchProgress状态机组织真实事件，collect以可选回调上报；Operations复用内部result_data._progress保存受租约令牌保护的快照，对外查询把progress和最终result分开，无需新迁移。完成/失败后保留消息，重新领取重置旧快照。ResearchMessages为展示叶子，现有轮询携带真实进度。新增隔离回归用例尚未执行。上一轮push授权已消费，本轮没有push授权。
 
 随后所有者要求统一结果目录、分类BAT入口，并明确“做完了push一下”：允许本轮完成后提交并推送当前仓库main一次；不解除暂停测试要求。所有新完整管线结果使用output/cli或output/web/执行令牌；CSV/PNG/模型/JSON由PipelinePaths组织到data/charts/models/metadata，各口径在series。新网页result.storage_layout=output-v1，旧无标记任务仍读data/pipeline；旧结果不自动迁移。底层PipelinePaths默认平铺供历史接口兼容，生产新入口明确organized=True，并通过output_layout传给离线进程。默认data的输出为同级output；非data名称的自定义根内隔离output。旧research接口和助手JSON会话仍在data。用户按钮集中启动脚本/01_平台、02_命令行、03_开发维护，由scripts/Launch.ps1复用所选解释器；桌面独立设计交接包未改动。本轮目录调整尚未运行验收。
 

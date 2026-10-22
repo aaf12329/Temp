@@ -184,8 +184,9 @@ def test_create_root_venv_with_selected_base_python(deployment):
     assert result.returncode == 0, result.stdout + result.stderr
     executable = root / ".venv/Scripts/python.exe"
     assert executable.is_file()
-    check = subprocess.run([str(executable), "-c", "import sys; print(sys.prefix)"],
+    check = subprocess.run([str(executable), "-X", "utf8", "-c", "import sys; print(sys.prefix)"],
                            capture_output=True, encoding="utf-8", timeout=10)
+    assert check.returncode == 0, check.stderr
     assert Path(check.stdout.strip()) == root / ".venv"
 
 

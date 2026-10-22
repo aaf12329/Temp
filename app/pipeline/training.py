@@ -94,7 +94,9 @@ def train_series(rows, config, paths, forecast_at, *, plan=False, stage="fit", u
     report = {"series_id": rows[0]["series_id"], "scope": rows[0]["scope"],
               "status": "insufficient_data", "requirements": reasons,
               "evidence_status": "machine_candidate_unreviewed", "needs_gan": False,
-              "real_rows": len(visible), "gan": {"status": "skipped"}}
+              "real_rows": len(visible), "gan": {"status": "skipped",
+                  "min_real_samples": config.gan.min_real_samples,
+                  "reason": "未启动WGAN：本序列尚未满足真实数据建模门槛，并非训练失败。"}}
     if split is None:
         return report
     train, validation, test = split
@@ -106,6 +108,11 @@ def train_series(rows, config, paths, forecast_at, *, plan=False, stage="fit", u
         return {**report, "requirements": ["隔离训练异常后真实训练样本不足"]}
     frame = frame.loc[keep].reset_index(drop=True)
     needs_gan = config.gan.mode != "off" and len(frame) >= config.gan.min_real_samples
+    report["gan"].update(real_train_rows=len(frame), reason=(
+        "真实训练量满足GAN门槛，等待用户选择是否训练。" if needs_gan and (plan or stage == "gan") else
+        "本轮未训练WGAN，仅使用真实数据进行XGBoost。" if needs_gan else
+        "本轮已关闭WGAN，使用真实数据。" if config.gan.mode == "off" else
+        f"未启动WGAN：真实训练样本{len(frame)}条，不足{config.gan.min_real_samples}条；可直接用真实数据XGBoost。"))
     report.update(status="planned", needs_gan=needs_gan,
                   split={"method": "chronological_publication_as_of", "train": len(frame),
                          "validation": len(validation), "test": len(test),

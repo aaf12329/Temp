@@ -64,9 +64,23 @@ class Operations:
             row = session.get(OperationRow, operation_id)
             if row is None or row.project_id != project_id:
                 raise ServiceError("E_OPERATION_NOT_FOUND", "当前项目没有该操作。", 404)
+            result = row.result_data
+            progress = result.get("_progress") if isinstance(result, dict) else None
+            if isinstance(result, dict) and "_progress" in result:
+                result = {key: value for key, value in result.items() if key != "_progress"} or None
             return {"operation_id": row.operation_id, "project_id": row.project_id,
                     "kind": row.kind, "state": row.state, "attempts": row.attempts,
-                    "result": row.result_data, "error": row.error_data}
+                    "result": result, "error": row.error_data, "progress": progress}
+
+    def update_progress(self, claim, progress: dict) -> bool:
+        """按当前令牌保存有界中间快照；由管线回调调用，无需数据库迁移。"""
+        with self.db.session() as session:
+            count = session.execute(update(OperationRow).where(
+                OperationRow.operation_id == claim.operation_id, OperationRow.state == "running",
+                OperationRow.lease_token == claim.token).values(
+                result_data={"_progress": progress})).rowcount
+            session.commit()
+            return bool(count)
 
     @staticmethod
     def ready(now):
@@ -87,7 +101,7 @@ class Operations:
             changed = session.execute(update(OperationRow).where(
                 OperationRow.operation_id == row.operation_id, self.ready(now)).values(
                 state="running", lease_token=token, lease_until=now + self.lease_seconds,
-                attempts=OperationRow.attempts + 1)).rowcount
+                attempts=OperationRow.attempts + 1, result_data=None, error_data=None)).rowcount
             if not changed:
                 session.rollback()
                 return None
@@ -111,6 +125,12 @@ class Operations:
     def complete(self, claim, result=None, error=None) -> bool:
         """防止旧执行者覆盖结果；由 Worker 收尾调用。"""
         with self.db.session() as session:
+            row = session.get(OperationRow, claim.operation_id)
+            if row is None or row.lease_token != claim.token or row.state != "running":
+                return False
+            snapshot = row.result_data.get("_progress") if isinstance(row.result_data, dict) else None
+            if snapshot is not None:
+                result = {**(result or {}), "_progress": snapshot}
             count = session.execute(update(OperationRow).where(
                 OperationRow.operation_id == claim.operation_id, OperationRow.state == "running",
                 OperationRow.lease_token == claim.token).values(

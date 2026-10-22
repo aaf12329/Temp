@@ -41,6 +41,10 @@ GAN还有独立的真实训练样本门槛，达到XGBoost门槛不意味着一�
 
 浏览器只调用 /api/platform 白名单接口。Node从根.env或自身环境读取服务token，转发到本机FastAPI；不使用NEXT_PUBLIC凭据，不把token交给浏览器。POST检查同源，转发目标仅本机。新网页产物保存在每次领取的独立output/web目录，经鉴权下载；历史任务继续读取data/pipeline。CLI覆盖output/cli登记产物，不用SQL。结果分类见根output/README.md。
 
+实际运行消息由ResearchMessages展示：每个网址的真实开始和结果带“当前序号/总网址数”，失败保留具体原因。LiveResearch每1.5秒查询任务进度；滚动查看历史时不强制跳到底部，完成或失败后仍保留。消息来源为Worker受令牌保护的持久快照，恢复任务编号可继续查看；没有伪造训练进度。后端更新需正常重启API/Worker后再提交新任务。
+
+最终“发展趋势”区域只显示本轮单次LLM趋势结论，不渲染整份技术状态报告。最终调用不读取或写入聊天、人工记忆、对话摘要，不输出追问或行动建议；数据不足则说明无法判断。完整数据、模型图表与report.md仍可下载。独立终端聊天及旧建议接口的记忆功能不属于这个最终研究调用。
+
 ## 设计组独立目录
 
 桌面“产业研究平台_前端设计交接”与同名ZIP是完整独立前端交互包，保持未接后端的设计快照。含源码、锁文件、启动预览.bat、Agent.md和预览图，不包含Python、环境、密钥或Node构建缓存。它直接打开九个演示视图，不依赖父目录。
@@ -67,4 +71,4 @@ src/server/paths.ts：服务端配置地址簿
 src/app/globals.css：结构样式
 ```
 
-npm test、npm run typecheck、npm run build是后续检查命令。所有者已明确本阶段暂停测试，不继续运行；此前执行结果和最后未重新验收的范围见主项目docs/网页总装说明.md。node_modules、.next、next-env.d.ts与tsbuildinfo是生成物，不入库。
+npm test、npm run typecheck、npm run build是检查命令。所有者2026-10-22已恢复本轮测试：10项交互测试和类型检查通过；本轮未做生产构建或浏览器视觉验收，详见主项目docs/验证记录_20261022.md。node_modules、.next、next-env.d.ts与tsbuildinfo是生成物，不入库。

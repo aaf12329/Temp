@@ -1,6 +1,6 @@
 """CLI 离线管线的显式聚合层，只在统一解释器的隔离进程中加载旧算法。
 
-结构：analyze → 召回/抽取/规则清洗/缺失统计；model → 逐序列 training.train_series。
+结构：_information_rows；analyze → 均衡预算/混合召回/上下文抽取/诊断；model → 逐序列训练。
 调用：crawler.bridge → 本入口 → research / wgan_tools / 本地清洗与建模模块。
 数据流：已采材料+一句问题 → 原文/候选/审计 CSV → 同口径年度探索 → 模型报告与 PNG。
 边界：不访问数据库，不调用 LLM，不把 pending 候选伪装成人工 approved。
@@ -18,7 +18,10 @@ from app.common.file_io import read_json, write_csv_rows, write_json
 from app.common.paths import PipelinePaths
 from app.contracts.pipeline import CLIConfig
 from app.pipeline.cleaning import clean_candidates
+from app.pipeline.context import complete_context
+from app.pipeline.diagnostics import diagnose, gan_gate, no_model_reasons
 from app.pipeline.plots import missing_plot
+from app.pipeline.selection import balanced_passages, retrieval_settings, supplement_numeric
 from app.pipeline.training import train_series
 
 
@@ -28,6 +31,22 @@ def _runtime(started):
     return {"seconds": round(time.perf_counter() - started, 3),
             "rss_mb": round(memory.rss / 1024**2, 2),
             "peak_rss_mb": round(getattr(memory, "peak_wset", memory.rss) / 1024**2, 2)}
+
+
+def _information_rows(selected, facts):
+    """匹配原文附上对应候选的口径限制，避免最终助手丢失限额等上文；不改原文。"""
+    grouped = defaultdict(list)
+    for fact in facts:
+        grouped[fact.get("passage_id")].append(fact)
+    result = []
+    for passage in selected:
+        related = grouped[passage["passage_id"]]
+        notes = [note for fact in related for note in fact.get("context_evidence", [])]
+        unique = {str(note): note for note in notes}
+        result.append({**passage, "context_evidence": list(unique.values())[:12],
+                       "candidate_flags": sorted({flag for fact in related
+                                                  for flag in fact.get("uncertainty_flags", [])})})
+    return result
 
 
 def analyze(message):
@@ -40,12 +59,13 @@ def analyze(message):
     config = CLIConfig.model_validate(message["config"])
     paths = PipelinePaths(Path(message["output"]), organized=message.get("output_layout", False))
     corpus = evidence.load_corpus(message["records"])
-    passages = corpus["passages"][:config.max_passages]
+    settings = retrieval_settings(message["question"], config, evidence.DEFAULT_SUBJECTS,
+                                  evidence.DEFAULT_REGIONS, evidence.METRICS)
+    passages = balanced_passages(corpus["passages"], settings, config.max_passages)
     print(f"[整理] {len(corpus['documents'])} 份材料，{len(corpus['passages'])} 个段落；"
-          f"本轮处理前 {len(passages)} 段", flush=True)
-    settings = {"queries": [message["question"]], "keywords": config.keywords,
-                "subjects": config.subjects, "regions": config.regions,
-                "semantic_threshold": config.semantic_threshold}
+          f"按文档均衡、数值优先处理 {len(passages)} 段", flush=True)
+    print(f"[检索词] {settings['keywords']}；阈值 {config.semantic_threshold}；"
+          "另保留相关指标数值候选", flush=True)
     encoder, warning = None, None
     if config.retrieval != "keywords":
         try:
@@ -55,17 +75,15 @@ def analyze(message):
             raise ValueError("本地 BGE 模型不可用，请先运行 model-setup；"
                              "或在 config/cli.json 显式选择 keywords。") from exc
     else:
-        # 不把整句当成单个必须完整匹配的关键词；高级关键词为空时明确提示。
-        import re
-
-        terms = config.keywords or [term for term in re.split(r"[\s，,。；;、？！?!]+", message[
-            "question"]) if len(term) >= 2]
-        settings["keywords"] = terms
-        warning = "当前为显式关键词模式，不提供向量分数；可在 JSON 设置更精确的 keywords"
-        print(f"[检索] 关键词模式：{terms}", flush=True)
-    scored = retrieval.score_passages(passages, settings, encoder)
+        warning = "当前为显式关键词/指标数值召回，不提供向量分数；可在 JSON 设置更精确的 keywords"
+    if not settings["keywords"]:
+        scope_warning = ("需求未识别出明确产业或指标关键词；数值补查保留各来源原口径，不把它们自动归为同一产业。"
+                         "新产业可在JSON配置subjects/keywords。")
+        warning = f"{warning}；{scope_warning}" if warning else scope_warning
+    scored = supplement_numeric(retrieval.score_passages(passages, settings, encoder), settings)
     selected = [passage for passage in scored if passage["selected"]]
-    facts = evidence.extract_facts(selected, settings)
+    facts = complete_context(evidence.extract_facts(selected, settings), selected,
+                             corpus["documents"], settings)
     truncated_facts = len(facts) > config.laptop.max_rows
     facts = facts[:config.laptop.max_rows]
     _restore_references(corpus, message.get("reference_map", {}))
@@ -94,17 +112,26 @@ def analyze(message):
         "truncated": {"passages": len(corpus["passages"]) > len(passages), "facts": truncated_facts},
         "evidence_status": "machine_candidate_unreviewed", "runtime": _runtime(started),
         "retrieval": encoder.report() if encoder else {"mode": "keywords"}}
-    write_csv_rows(paths.file("information"), selected, ["passage_id", "record_id", "url", "title",
+    selection = {"keywords": settings["keywords"], "scope_source": settings["scope_source"],
+                 "subjects": settings["subjects"], "regions": settings["regions"],
+                 "semantic_threshold": config.semantic_threshold,
+                 "numeric_context_selected": sum(p["relevance_reason"] == "numeric_context" for p in selected),
+                 "budget_policy": "document_round_robin_numeric_priority",
+                 "available_passages": len(corpus["passages"]), "processed_passages": len(passages)}
+    result["diagnostics"] = diagnose(result["counts"], rejected, selection)
+    write_csv_rows(paths.file("information"), _information_rows(selected, facts), ["passage_id", "record_id", "url", "title",
                    "published_at", "text", "text_path", "text_sha256", "char_start", "char_end",
-                   "semantic_score", "relevance_reason"])
+                   "semantic_score", "relevance_reason", "context_evidence", "candidate_flags"])
     write_csv_rows(paths.file("passages"), scored, list(CSV_FIELDS["passages"]))
     for name, values in [("raw", facts), ("candidates", facts), ("cleaned", cleaned),
                          ("rejected", rejected), ("series", series)]:
         fields = list(CSV_FIELDS["series"]) + ["evidence_status"] if name == "series" else (
-            list(CSV_FIELDS["facts"]) + ["cleaning_reasons"])
+            list(CSV_FIELDS["facts"]) + ["cleaning_reasons", "extraction_source_id", "context_evidence"])
         write_csv_rows(paths.file(name), values, fields)
     write_json(paths.file("missing"), missing)
     write_json(paths.file("analysis"), {**result, "facts": facts, "series": series})
+    write_json(paths.file("diagnostics"), result["diagnostics"])
+    print(f"[数据诊断] {result['diagnostics']['message']}", flush=True)
     print(f"[清洗] 候选 {len(facts)}，可比候选 {len(cleaned)}，排除 {len(rejected)}；"
           f"同口径年度行 {len(series)}", flush=True)
     for row in rejected[:10]:
@@ -144,7 +171,7 @@ def model(message):
             print(f"[不能建模] {reason}", flush=True)
         if not message.get("plan") and report.get("gan", {}).get("reason"):
             print(f"[WGAN] {report['gan']['reason']}", flush=True)
-    requirements = [] if reports else ["没有口径、发布时间、年份均明确且无冲突的同口径年度候选；直接总结已有信息"]
+    requirements = [] if reports else no_model_reasons(analysis)
     for reason in requirements:
         print(f"[不能建模] {reason}", flush=True)
     result = {"status": "awaiting_gan_review" if message.get("stage") == "gan" else (
@@ -152,6 +179,8 @@ def model(message):
               "modeled" if any(r["status"] == "exploratory_model" for r in reports)
               else "data_only"), "series_reports": reports, "requirements": requirements,
               "needs_gan": any(r.get("needs_gan") for r in reports),
+              "gan_gate": gan_gate(reports, config.gan.min_real_samples, config.gan.mode,
+                                   planning=message.get("plan", False)),
               "series_limit_reached": len(grouped) > config.max_series,
               "runtime": _runtime(started), "candidate_evidence_only": True}
     if not message.get("plan"):
