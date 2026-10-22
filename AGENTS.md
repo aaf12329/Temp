@@ -1,5 +1,11 @@
 # 项目入口
 
+2026-10-22 所有者在采集后分支完成并通过上述验收后明确要求“push一下”，授权将本轮采集检查点/用户分支选择及配套文档测试提交并推送到当前origin/main一次；完成即失效，不延用于后续改动。
+
+2026-10-22 最新澄清覆盖此前教材分支继续开发范围：先共用采集，采集完成再让用户选；教材分支只保存材料并停止，后续定制解析待所有者确定。本轮0子代理，CLI main默认采集后询问，网页collect→branch_choice→route(llm|textbook)，教材返回materials_ready且不调用检索/抽取/清洗/训练/LLM。原自动流程复用同批正文并核对哈希；父操作只读，旧prepare与deterministic入口兼容保留。新增sources.zip、collection.json均由地址簿登记，原件缺失明确标注。详见docs/采集后分支.md。本轮无提交/推送或真实网站/模型API验收授权。
+
+采集后分支验收：完整Python 146通过/1跳过（Windows符号链接权限，114.53秒），前端typecheck与10项现有测试通过，7个受影响Python文件Ruff通过。新增4项回归覆盖采后询问、教材停止不调用模型/LLM、原流程复用不重爬、父产物只读/阶段和项目边界、材料原字节及越界拒绝。OpenAPI已同步。本轮未运行浏览器视觉验收、真实网站或模型API，未重启既有服务，未提交推送。
+
 2026-10-22 双抽取路径：所有者要求采集后分PDF式确定性与原LLM自动两条路径，前后端都改、output分层，并用26个公报网址实测。新增CLIConfig.extraction(mode=llm|deterministic, rules[])与app/pipeline/deterministic.py：规则按配置正则逐份正文取唯一值，本地核对唯一年度标题、发布时间与单位；未配置规则时用本地规则且不调用清洗LLM。CLI --extraction覆盖，网页PipelineRequest.extraction由LiveResearch选择；结果分层output/cli/<mode>与output/web/<mode>/<run_id>。LLM路径修复：scope对象/null review_reason归一、同文档block_id重挂、统计公报标题地域回填、变动量与分品种不参与冲突、发布日月份不再当季度；最终助手最多32个来源并按来源均分证据额度。真实26网址：deterministic 26候选→26连续年度→XGBoost exploratory_model（12/4/4，测试MAE约1.057亿吨，不敌末值1726万）；llm清洗后25条→2001—2025连续→XGBoost exploratory_model（11/4/4，测试MAE约1.043亿吨，不敌末值）；两条路径均未声称预测可靠。完整pytest 142通过/1跳过，前端类型与10测试通过，Ruff通过。未提交推送。交接与遗留问题见docs/交接_20261022_双抽取路径.md。
 
 2026-10-22 12:33—12:34所有者明确要求从网址开始做一次真实全流程测试：使用26个全国粮食年度来源、根配置0.50阈值、既有deepseek-flash API，正式CLI85.02秒返回data_only。26项全部被非公网DNS闸门拒绝，www.cee.edu.cn解析198.18.0.54，正文/候选/年度行均0；清洗no_input且API批次0，最终趋势真实API成功并报告数据不足（1096 tokens），没有触发WGAN/XGBoost。独立产物output/real-source-tests/20261022-full-pipeline-123307；未改DNS/代理或守卫、未降低门槛、未重复第二轮、未提交推送。详见docs/真实全流程测试_20261022.md。

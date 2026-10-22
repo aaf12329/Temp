@@ -3,12 +3,26 @@
  */
 import type { PipelineResult } from "@/types/pipeline";
 import { DataQualityPanel } from "./DataQualityPanel";
-type Props = { result: PipelineResult; files: { name: string; url: string }[]; busy: boolean; framework: "pytorch" | "tensorflow"; onFramework: (value: "pytorch" | "tensorflow") => void; onGan: () => void; onModel: (accept: boolean) => void; onReset: () => void };
+type Props = { result: PipelineResult; files: { name: string; url: string }[]; busy: boolean; framework: "pytorch" | "tensorflow"; onFramework: (value: "pytorch" | "tensorflow") => void; onRoute: (value: "llm" | "textbook") => void; onGan: () => void; onModel: (accept: boolean) => void; onReset: () => void };
 const CHART_NAMES: Record<string, string> = { "evaluation.png": "预测对照、残差与误差分布", "importance.png": "XGBoost原生特征重要性", "trend.png": "真实测试期趋势与探索性预测", "missing.png": "数据缺失情况", "data_quality.png": "清洗前后记录数与字段缺失对照", "comparison.png": "模型性能对比", "shap.png": "TreeSHAP特征解释", "gan_tsne.png": "真实训练数据与生成数据 t-SNE", "gan.png": "WGAN训练曲线" };
 
 /** 展示真实操作产物，未生成的回测图不显示占位；失败原因保持原样可查。 */
-export function LiveResults({ result, files, busy, framework, onFramework, onGan, onModel, onReset }: Props) {
+export function LiveResults({ result, files, busy, framework, onFramework, onRoute, onGan, onModel, onReset }: Props) {
   const images = files.filter((file) => file.name.endsWith(".png"));
+  if (result.stage === "branch_choice" || result.stage === "materials_ready") return <section className="panel" aria-labelledby="collection-title">
+    <h2 id="collection-title">{result.stage === "branch_choice" ? "网页采集完成：请选择后续分支" : "教材分支：先查看已采集材料"}</h2>
+    <p>{result.context.question}</p>
+    <p className="notice">已采集 {result.counts.documents} 份材料，失败或跳过 {result.counts.failed_urls} 项。目前只完成采集，尚未进行向量匹配、数值抽取、数据清洗、训练或 LLM 分析。</p>
+    {result.stage === "branch_choice" ? <div className="actions">
+      <button disabled={busy} onClick={() => onRoute("llm")}>继续原自动流程</button>
+      <button disabled={busy} onClick={() => onRoute("textbook")}>进入教材分支，先查看材料</button>
+    </div> : <p>本分支暂时到这里。后续如何按网页结构解析、提取和清洗，待查看材料后确定。</p>}
+    <details open><summary>已采集来源（{result.collection?.documents.length || 0}份）</summary><ul>{result.collection?.documents.map((item) => <li key={item.record_id}>{item.title || item.url}：{item.raw_available ? "原文件和正文已保存" : "已保存正文；本来源未保存原文件"}</li>)}</ul></details>
+    <details><summary>访问记录与失败原因（{result.access.length}项）</summary><ul>{result.access.map((item, index) => <li key={index}>{item.url}：{item.status} / {item.reason}</li>)}</ul></details>
+    <p>sources.zip 包含已保存原件、正文和带来源及哈希的索引。材料包中 raw/ 为原件，normalized/ 为爬虫整理的正文等文件。</p>
+    <ul>{files.map((file) => <li key={file.name}><a href={file.url}>{file.name}</a></li>)}</ul>
+    <button disabled={busy} onClick={onReset}>开始新的采集</button>
+  </section>;
   return <section className="panel" aria-labelledby="live-result-title">
     <h2 id="live-result-title">{result.stage === "choice" ? "信息整理完成：选择建模方式" : result.stage === "gan_review" ? (result.gan_usable ? "GAN数据审查：查看并决定是否采用" : "GAN阶段结果：未取得可采用数据，请查看原因") : "研究结果与分析"}</h2>
     <p>{result.context.question}</p>

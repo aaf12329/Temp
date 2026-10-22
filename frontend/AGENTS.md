@@ -1,5 +1,7 @@
 # 前端入口
 
+2026-10-22最新交互：LiveResearch先提交collect，采集完成后LiveResults显示branch_choice的两个按钮；route(llm)复用本批正文继续原流程，route(textbook)返回materials_ready，仅供查看/下载材料，不实现教材后续解析。分支选择不再出现在采集前；材料阶段不显示尚未判定的建模失败或LLM结果。旧确定性正则接口仍兼容保留，与新教材暂停分支区分。详见../docs/采集后分支.md。
+
 2026-10-22资料融合：DataQualityPanel为只接props的数据质量叶子，LiveResults注入实际data_quality。按不同阶段各自分母显示缺失与格式异常，空集显示无候选；data_quality.png是处理统计图，不是模型性能图。桌面设计包未修改。
 
 2026-10-22最新：主项目实际模式使用“LLM数据清洗与趋势分析”选项，同时控制两阶段API。CSV先落盘，中间分批清洗，最终单独趋势请求；LiveResults显示llm_cleaning实际状态。不要再宣称只有最终阶段远程调用。桌面设计交接包未同步此次主项目更改。

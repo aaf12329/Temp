@@ -25,8 +25,9 @@ export type DataQuality = {
   interpretation: string; llm_status: string;
 };
 export type PipelineResult = {
-  stage: "choice" | "gan_review" | "completed"; run_id: string;
-  extraction?: "llm" | "deterministic";
+  stage: "branch_choice" | "materials_ready" | "choice" | "gan_review" | "completed"; run_id: string;
+  extraction?: "collection" | "textbook" | "llm" | "deterministic";
+  collection?: { note: string; documents: { record_id: string; url: string; title?: string | null; raw_available: boolean; files: { path: string; sha256: string; bytes: number }[] }[] };
   extraction_detail?: { mode: string; method?: string; rule_count: number; issues: { code: string; message: string }[] } | null;
   context: { question: string };
   counts: Record<string, number>; can_model: boolean; gan_available: boolean; gan_usable: boolean;

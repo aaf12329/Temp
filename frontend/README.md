@@ -2,7 +2,7 @@
 
 主项目已在代码层接通 React/Next.js → FastAPI → 持久Worker → Python研究管线。首页默认“实际研究”，顶部可切换“设计预览（合成演示）”。不做登录、注册或用户中心；两种模式的数据与状态分开。最终视觉设计由人类负责。
 
-React/Next.js frontend with a local FastAPI/worker connection. The actual workflow and synthetic design preview are separate. Credentials stay server-side. After collection, users select a deterministic rule path (no cleaning LLM) or the original stateless LLM cleaning path; final trend analysis is a separate stateless LLM API stage.
+React/Next.js frontend with a local FastAPI/worker connection. The actual workflow and synthetic design preview are separate. Credentials stay server-side. After collection, users choose the original automatic workflow or the textbook branch, which currently saves source materials and stops for inspection.
 
 ## 启动
 
@@ -19,11 +19,13 @@ React/Next.js frontend with a local FastAPI/worker connection. The actual workfl
 ## 实际流程
 
 ```text
-TXT本地读取（最多1MB/100个去重HTTP(S)网址）+ 一句话需求 + 抽取路径
- → Next同源接口 → FastAPI提交prepare操作 → Worker采集/整理/查门槛
+TXT本地读取（最多1MB/100个去重HTTP(S)网址）+ 一句话需求
+ → Next同源接口 → FastAPI提交collect操作 → Worker仅采集并保存材料
+ → branch_choice：采集完成后让用户选择
+      ├─ 教材分支 → route(textbook) → materials_ready，保存材料并停止
+      └─ 原自动流程 → route(llm)，复用已采正文继续
       → 扩大向量/关键词匹配 → 先写CSV
-         ├─ deterministic：配置正则逐份取唯一值 → 本地核对年份/发布时间/单位
-         └─ llm：分批无记忆LLM清洗 → 本地原文/数字校验
+      → 分批无记忆LLM清洗 → 本地原文/数字校验
       → 缺失诊断/年度序列/查门槛
  ├─ 不足 → CSV + 原因 + 最终分析/状态报告
  └─ 达到条件 → 用户选择
@@ -35,7 +37,7 @@ TXT本地读取（最多1MB/100个去重HTTP(S)网址）+ 一句话需求 + 抽�
  → 真实测试指标/实际PNG/CSV → 最终LLM（可关闭）→ 报告
 ```
 
-提交前的“数据抽取路径”选择会写入任务请求；结果页显示本轮路径，确定性路径还显示规则数量和未采纳项。网页任务目录按`output/web/<路径>/<令牌>`分层，GAN/建模阶段沿用父任务路径。
+分支选择出现在采集完成后；此前不会启动研究检索、清洗或建模。教材分支展示来源、失败原因及sources.zip下载，后续定制解析待确定。网页任务目录按`output/web/<路径>/<令牌>`分层，GAN/建模阶段沿用父任务路径。旧prepare/确定性正则接口兼容保留，当前网页不将其当作教材分支。详见[采集后分支](../docs/采集后分支.md)。
 
 GAN还有独立的真实训练样本门槛，达到XGBoost门槛不意味着一定可以用GAN。生成数量只按真实训练集计算，验证/测试完全隔离。确认后读取同一批带哈希的生成文件，不重训GAN。采用后真实验证未改善时回退真实数据模型，页面会说明。
 

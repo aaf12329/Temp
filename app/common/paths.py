@@ -94,6 +94,7 @@ class PipelinePaths:
             "extraction_context": "extraction_context.json", "review": "review.csv",
             "data_quality": "data_quality.json", "data_quality_fields": "data_quality_fields.csv",
             "data_quality_plot": "data_quality.png",
+            "sources": "sources.zip", "collection": "collection.json",
             "forecast": "forecast.csv",
             "tsne": "gan_tsne.png", "tsne_points": "gan_tsne.csv", "tsne_meta": "gan_tsne.json",
             "gan_review": "gan_review.json", "evidence": "evidence.json",
@@ -104,7 +105,7 @@ class PipelinePaths:
             return self.root / filename
         category = ("charts" if filename.endswith(".png") else
                     "models" if name == "model" else
-                    "data" if filename.endswith(".csv") else "metadata")
+                    "data" if filename.endswith((".csv", ".zip")) else "metadata")
         return self.root / category / filename
 
     def series(self, digest: str) -> "PipelinePaths":
@@ -124,6 +125,7 @@ class PipelinePaths:
                  "passages", "analysis", "manifest", "status", "diagnostics", "information", "forecast",
                  "llm_input", "llm_cleaning", "extraction_context", "review",
                  "data_quality", "data_quality_fields", "data_quality_plot",
+                 "sources", "collection",
                  "tsne", "tsne_points", "tsne_meta", "gan_review", "evidence", "comparison", "shap"]
         vendor = ["model.npz", "model.json", "normalizer.json", "training_history.csv",
                   "generated_data.csv", "generated_encoded.csv", "training_data.csv",

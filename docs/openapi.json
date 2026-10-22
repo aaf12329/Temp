@@ -2702,6 +2702,8 @@
           "stage": {
             "type": "string",
             "enum": [
+              "collect",
+              "route",
               "prepare",
               "gan",
               "model"
@@ -2768,6 +2770,16 @@
             ],
             "title": "Retrieval",
             "default": "bge-small-zh-v1.5-int8"
+          },
+          "extraction": {
+            "type": "string",
+            "enum": [
+              "llm",
+              "deterministic",
+              "textbook"
+            ],
+            "title": "Extraction",
+            "default": "llm"
           }
         },
         "additionalProperties": false,

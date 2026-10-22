@@ -21,7 +21,9 @@ Windows复用既有SQLite持久队列；Linux Celery/Redis/PostgreSQL配置仍�
 
 网页入口见 [frontend/README.md](frontend/README.md)：打开即用，没有登录、注册或用户中心。“实际研究”连接本机服务，“设计预览”保留九个合成演示视图。桌面的“产业研究平台_前端设计交接”及同名ZIP保持独立、未接后端，供人类设计师工作。实际接线说明与验收见 [网页总装说明](docs/网页总装说明.md)。
 
-2026-10-22 最新流程：**采集 → 扩大向量/关键词匹配 → CSV落盘 → 二选一整理（确定性规则 / LLM清洗）→ 原有缺失诊断、建模判定、可选WGAN、XGBoost → 最终趋势**。确定性路径按配置 `extraction.rules` 的正则逐份正文取唯一值，本地核对唯一年度标题、发布时间和单位，不调用清洗API，适合版式固定的年度公报；LLM路径保留原分批无记忆清洗，并修复字段形状、同文档 block_id 错挂、变动量/分品种混淆和发布日月份误判。两条路径共用后续门槛与模型。默认向量阈值仍为0.50，保留指标数值与相邻数值行补查。清洗读取data/llm_input.csv，写data/cleaned.csv及data/review.csv；data/raw.csv保留清洗前候选。清洗使用根.env中既有LLM设置，llm=off关闭两阶段API。配置与边界见[CLI使用说明](docs/CLI使用说明.md)和[CSV后LLM清洗](docs/CSV后LLM清洗.md)。
+2026-10-22 最新交互：**先采集网页 → 用户选择 → 原自动流程继续 / 教材分支仅保存材料并停止**。网页采集完成后显示两个按钮，选择前不会加载BGE、调用清洗/趋势LLM或开始建模。教材分支暂不实现后续解析，供查看原件和正文后决定；原自动流程复用本批材料，继续向量/关键词匹配、CSV、LLM清洗及既有缺失/建模体系。材料包 `data/sources.zip` 保存已取得的HTML/PDF原件、正文、表格及来源/哈希索引；没有原件时明确标注。终端启动默认爬完后询问，无人值守可指定 `--after-crawl continue` 或 `--after-crawl textbook`。详见[采集后分支说明](docs/采集后分支.md)。
+
+既有 `extraction.rules` 正则确定性抽取仍保留为兼容功能，与当前“教材分支先停在材料”是不同入口。默认向量阈值仍为0.50，保留指标数值与相邻数值行补查。清洗读取data/llm_input.csv，写data/cleaned.csv及data/review.csv；data/raw.csv保留清洗前候选。清洗使用根.env中既有LLM设置，llm=off关闭两阶段API。配置与边界见[CLI使用说明](docs/CLI使用说明.md)和[CSV后LLM清洗](docs/CSV后LLM清洗.md)。
 
 2026-10-22 双路径实测：使用“数学建模测试集”的26个全国粮食公报刊链接，确定性路径26/26命中，形成2000—2025连续26个年度，XGBoost状态为exploratory_model（训练12/验证4/测试4）；LLM路径清洗后25个连续年度，同样进入XGBoost（训练11/验证4/测试4）。两条路径的真实测试MAE都明显差于“沿用上期值”基线，报告均明确标注预测不可靠，不作为趋势结论。结果分层在 `output/cli/deterministic` 与 `output/cli/llm`；完整pytest 142通过/1跳过，前端类型检查和10项测试通过。本轮未提交或推送。本轮改动、运行方式和遗留问题见[交接文档](docs/交接_20261022_双抽取路径.md)。
 

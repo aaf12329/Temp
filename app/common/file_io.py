@@ -13,6 +13,7 @@ import os
 import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from zipfile import ZIP_DEFLATED, ZipFile
 
 
 def read_text(path: Path, encodings: tuple[str, ...] = ("utf-8-sig", "gb18030")) -> str:
@@ -85,6 +86,18 @@ def read_frame(path: Path, max_rows: int = 10000):
 def write_frame(path: Path, frame) -> None:
     """统一原子导出 DataFrame CSV，兼容 Excel BOM。"""
     write_text(path, "\ufeff" + frame.to_csv(index=False))
+
+
+def write_zip(path: Path, entries) -> None:
+    """按调用方提供的受限相对名称打包字节，原子保存，不解压任何外部压缩包。"""
+    stream = io.BytesIO()
+    with ZipFile(stream, "w", compression=ZIP_DEFLATED) as archive:
+        for name, content in entries:
+            candidate = Path(name)
+            if candidate.is_absolute() or candidate.drive or ".." in candidate.parts:
+                raise ValueError("材料包文件名必须是包内相对路径。")
+            archive.writestr(candidate.as_posix(), content)
+    write_bytes(path, stream.getvalue())
 
 
 def save_figure(path: Path, figure) -> None:

@@ -17,6 +17,7 @@ from filelock import FileLock, Timeout
 from pydantic import ValidationError
 
 from app.advisor.integrated import IntegratedAdvisor
+from app.common.collection import save_collection
 from app.common.component import run_component
 from app.common.evidence_files import stage_records
 from app.common.file_io import (
@@ -322,11 +323,23 @@ def accept_gan(modeling, paths, input_fn):
     return choice == "1"
 
 
+def choose_after_crawl(input_fn):
+    """采集完成后选择去向；教材分支目前只保存材料，不启动后续处理。"""
+    choice = input_fn("[采集后分支] 1=继续原自动流程，2=教材分支（只保存材料并停止）[默认2]：").strip()
+    while choice not in {"", "1", "2"}:
+        choice = input_fn("请输入1或2：").strip()
+    return "continue" if choice == "1" else "textbook"
+
+
 def run(url_file, question, config, settings, *, paths=None, adapter=None, advisor=None,
-        input_fn=input):
+        input_fn=input, post_crawl="continue"):
     """无数据库全流程；覆盖前先完成输入校验，锁避免并发覆盖或并发训练。"""
+    if post_crawl not in {"ask", "continue", "textbook"}:
+        raise ValueError("采集后分支必须为 ask/continue/textbook。")
     mode = config.extraction.mode
-    paths = paths or PipelinePaths(CLI_OUTPUT_ROOT / mode, organized=True)
+    custom_paths = paths is not None
+    paths = paths or PipelinePaths(CLI_OUTPUT_ROOT / (
+        "collection" if post_crawl != "continue" else mode), organized=True)
     question = question.strip()
     if not 1 <= len(question) <= 4000:
         raise ValueError("检索需求需要 1..4000 个字符。")
@@ -345,12 +358,28 @@ def run(url_file, question, config, settings, *, paths=None, adapter=None, advis
         except ValueError:
             shown = str(paths.root)
         print(f"[路径] 数据抽取：{mode}；结果目录：{shown}", flush=True)
-        print("[流程] 采集 → 扩大召回 → CSV落盘 → "
-              + ("确定性规则抽取" if mode == "deterministic" else "LLM清洗")
-              + " → 原有缺失诊断/建模", flush=True)
+        print("[流程] 采集 → 选择分支；教材分支停在材料，原流程继续整理/建模", flush=True)
         records, files, evidence, access = collect(urls, config, settings, adapter=adapter)
-        write_json(paths.file("access"), ignored + access)
-        write_json(paths.file("materials"), records)
+        collection = save_collection(records, evidence, ignored + access, question, config,
+                                     settings.data_dir, paths)
+        if post_crawl == "ask":
+            write_json(paths.file("status"), {"status": "branch_choice"})
+            post_crawl = choose_after_crawl(input_fn)
+        if post_crawl == "textbook":
+            final = {"status": "materials_ready", "extraction": "textbook",
+                     "counts": collection["counts"], "llm_status": "not_started",
+                     "seconds": round(time.perf_counter() - started, 3)}
+            write_json(paths.file("result"), final)
+            write_json(paths.file("status"), {"status": "materials_ready"})
+            print(f"[教材分支] 已停在采集完成处，未进行解析、清洗或建模。材料包：{paths.file('sources')}",
+                  flush=True)
+            return final
+        write_json(paths.file("status"), {"status": "running"})
+        if not custom_paths and paths.root.name == "collection":
+            paths = PipelinePaths(CLI_OUTPUT_ROOT / mode, organized=True)
+            reset_pipeline_outputs(paths)
+            save_collection(records, evidence, ignored + access, question, config, settings.data_dir, paths)
+            write_json(paths.file("status"), {"status": "running"})
         workspace = DataPaths(settings.data_dir).research_workspace(uuid4().hex)
         staged, references = stage_records(records, files, workspace)
         try:
@@ -407,6 +436,8 @@ def main(argv=None):
     parser.add_argument("--config", default=CLI_CONFIG.relative_to(PROJECT_ROOT).as_posix())
     parser.add_argument("--urls-file", help="可选：每行一个网址的 TXT，支持带空格的绝对地址")
     parser.add_argument("--query", help="可选：一句检索需求；省略时在终端询问")
+    parser.add_argument("--after-crawl", choices=["continue", "textbook"],
+                        help="无人值守时指定采集后去向；省略则爬完后询问，教材分支仅保存材料")
     parser.add_argument("--extraction", choices=["llm", "deterministic"],
                         help="覆盖配置的抽取路径：llm=LLM自动清洗，deterministic=按规则确定性抽取")
     args = parser.parse_args(argv)
@@ -418,7 +449,7 @@ def main(argv=None):
         url_file = args.urls_file or input("网址清单文件地址（每行一个网站）：").strip()
         question = args.query or input("要检索什么信息（一句话）：").strip()
         settings = Settings(api_token="cli-unused-" + uuid4().hex)
-        run(url_file, question, config, settings)
+        run(url_file, question, config, settings, post_crawl=args.after_crawl or "ask")
     except (ValueError, OSError, ValidationError) as exc:
         raise SystemExit(f"[配置或输入错误] {exc}") from None
     except Timeout:
@@ -426,7 +457,7 @@ def main(argv=None):
     except ServiceError as exc:
         raise SystemExit(f"[{exc.error.code}] {exc.error.message}；已生成文件仍保留在 output。") from None
     except (EOFError, KeyboardInterrupt):
-        raise SystemExit("\n[已停止] 未完成结果请以 output/cli/<llm|deterministic>/metadata/status.json 为准。") from None
+        raise SystemExit("\n[已停止] 请查看 output/cli/<collection|llm|deterministic>/metadata/status.json。") from None
 
 
 if __name__ == "__main__":
